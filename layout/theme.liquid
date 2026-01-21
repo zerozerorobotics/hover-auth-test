@@ -296,8 +296,10 @@
         document.documentElement.classList.add('shopify-design-mode');
       }
     </script>
-  {% render 'wsg-custom' %}
-</head>
+    {% render 'wsg-custom' %}
+
+    {% render 'keycloak-auto-login' %}
+  </head>
 
   <body class="gradient{% if settings.animations_hover_elements != 'none' %} animate--hover-{{ settings.animations_hover_elements }}{% endif %}">
     <a class="skip-to-content-link button visually-hidden" href="#MainContent">

@@ -15,6 +15,18 @@
    *    - state=PROBE (Signal to Filter)
    */
   (function () {
+    // 0. Surgical Cleanup & Session Persistence
+    // -------------------------------------------------------------------------
+    // Capture 'kc_sid' from URL, save to localStorage for device-aware logout,
+    // and remove it from URL without reloading.
+    var url = new URL(window.location.href);
+    var kcSid = url.searchParams.get('kc_sid');
+    if (kcSid) {
+      console.log('[AutoLogin] Captured Keycloak SID:', kcSid);
+      localStorage.setItem('kc_session_id', kcSid);
+      url.searchParams.delete('kc_sid');
+      window.history.replaceState(null, null, url.pathname + url.search + url.hash);
+    }
     // 1. Shopify User Status Check
     // -------------------------------------------------------------------------
     // IMPORTANT: When pasting this into Shopify 'keycloak-auto-login.liquid',

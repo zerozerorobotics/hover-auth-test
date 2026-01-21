@@ -1,0 +1,55 @@
+{% comment %}
+  Snippet: keycloak-auto-login.liquid
+  Purpose: Automatically redirect anonymous users to Keycloak to check for an active session.
+{% endcomment %}
+
+<script>
+  (function() {
+      // 1. Shopify User Status Check (Injected via Liquid)
+      // 如果 customer 对象存在，说明已在 Shopify 登录，直接为 true
+      var isShopifyUserLoggedIn = {% if customer %}true{% else %}false{% endif %};
+
+      if (isShopifyUserLoggedIn) {
+          console.log("[AutoLogin] User is already logged in (Shopify).");
+          return;
+      }
+
+      // 2. Loop Prevention Check (SessionStorage)
+      var CHECK_FLAG = "keycloak_checked";
+      var hasChecked = sessionStorage.getItem(CHECK_FLAG);
+
+      if (hasChecked) {
+          console.log("[AutoLogin] Already checked in this session. Skipping.");
+          return;
+      }
+
+      // Configuration
+      var KEYCLOAK_AUTH_URL = "https://auth.zerozerorobotics.com/realms/vcopter/protocol/openid-connect/auth";
+      var CLIENT_ID = window.location.hostname === "latentseek.com" ? "shopify-fake-store-central" : "shopify-fake-store";
+
+      // Callback URL: This must be whitelisted in Keycloak client settings.
+      // The Filter will intercept strict matches to /account/login later.
+      var CALLBACK_URL = window.location.origin + "/account";
+
+      // 3. Execution: Dispatch Probe
+      console.log("[AutoLogin] Dispatching Probe...");
+
+      // Set flag to prevent loop
+      sessionStorage.setItem(CHECK_FLAG, "true");
+
+      // Optional: Show a loading overlay here to prevent "Flash"
+      // document.body.innerHTML = '<div style="position:fixed;top:0;left:0;width:100%;height:100%;background:white;z-index:9999;display:flex;align-items:center;justify-content:center;">Checking secure session...</div>';
+
+      // Construct Probe URL (prompt=none is key)
+      var probeUrl = KEYCLOAK_AUTH_URL +
+          "?client_id=" + encodeURIComponent(CLIENT_ID) +
+          "&redirect_uri=" + encodeURIComponent(CALLBACK_URL) +
+          "&response_type=code" +
+          "&scope=openid" +
+          "&prompt=none" +        // Silent check
+          "&state=PROBE";         // Signal to Filter
+
+      window.location.href = probeUrl;
+
+  })();
+</script>

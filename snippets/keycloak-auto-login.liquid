@@ -5,6 +5,11 @@
 
 <script>
   window.isShopifyUserLoggedIn = {% if customer %}true{% else %}false{% endif %};
+
+  window._auth_base_url = 'https://auth-test.zerozerorobotics.com';
+  window._auth_realm = 'vcopter';
+  window._auth_client_id = window.location.hostname === 'latentseek.com' ? 'shopify-fake-store-central' : 'shopify-fake-store';
+  window._auth_debug = true;
 </script>
 <script>
   /**
@@ -27,6 +32,21 @@
       return;
     }
     window.__kcAutoLoginInitialized = true;
+
+    // =========================================================================
+    // GLOBAL CONFIGURATION
+    // =========================================================================
+    var AUTH_BASE_URL = window._auth_base_url;
+    var REALM = window._auth_realm;
+    var CLIENT_ID = window._auth_client_id;
+    if (!AUTH_BASE_URL || !REALM || !CLIENT_ID) {
+      console.error('[AutoLogin] Missing Keycloak configuration.');
+      return;
+    }
+
+    // Derived URLs
+    var KEYCLOAK_SESSION_CHECK_URL = AUTH_BASE_URL + '/realms/' + REALM + '/hoverair/session-status';
+    var KEYCLOAK_AUTH_URL = AUTH_BASE_URL + '/realms/' + REALM + '/protocol/openid-connect/auth';
 
     // =========================================================================
     // EXPLICIT LOGOUT DETECTION
@@ -85,10 +105,6 @@
 
       var storedSid = localStorage.getItem('zz_session_id');
       if (storedSid) {
-        // Configuration - REPLACE THESE
-        var KEYCLOAK_SESSION_CHECK_URL =
-          'https://auth-test.zerozerorobotics.com/realms/vcopter/hoverair/session-status';
-
         function checkSessionStatus() {
           console.log('[SessionSync] Checking Keycloak session status...');
           fetch(KEYCLOAK_SESSION_CHECK_URL + '?token=' + encodeURIComponent(storedSid), {
@@ -137,16 +153,67 @@
       return;
     }
 
-    // Configuration - REPLACE THESE
-    var KEYCLOAK_AUTH_URL = 'https://auth-test.zerozerorobotics.com/realms/vcopter/protocol/openid-connect/auth';
-    var CLIENT_ID = window.location.hostname === 'latentseek.com' ? 'shopify-fake-store-central' : 'shopify-fake-store';
-    // The callback must be whitelisted in Keycloak, but it won't actually handle the login
-    // The Filter will intercept before this URL is hit.
+    // -------------------------------------------------------------------------
+    // STRATEGY B.2: BOUNCE PAGE HANDLER
+    // -------------------------------------------------------------------------
+    // If we are on the Bounce Page (/pages/session-sync), our ONLY job is to:
+    // 1. Extract #sid from URL
+    // 2. Save it to LocalStorage
+    // 3. Redirect to the 'target' query parameter
+    if (window.location.pathname.includes('/pages/session-sync')) {
+      console.log('[AutoLogin] Bounce Page Detected.');
+
+      var hash = window.location.hash;
+      if (hash && hash.includes('sid=')) {
+        var sid = hash.split('sid=')[1].split('&')[0]; // Simple extract
+        if (sid) {
+          console.log('[AutoLogin] Captured SID from Bounce Page:', sid);
+          localStorage.setItem('zz_session_id', sid);
+          // Optional: Clear hash to be clean, though we are redirecting anyway
+        }
+      }
+
+      var urlParams = new URLSearchParams(window.location.search);
+      var target = urlParams.get('target');
+      if (window._auth_debug) {
+        // add a break point here
+        debugger;
+      }
+      if (target) {
+        console.log('[AutoLogin] Bouncing to target:', target);
+        window.location.replace(target);
+      } else {
+        console.log('[AutoLogin] No target found on Bounce Page. Redirecting to account.');
+        window.location.replace('/account');
+      }
+      return; // STOP execution of normal probe logic
+    }
+
+    // Use current page as redirect_uri - Keycloak will return to this exact URL
+    // This requires wildcard redirect_uri in Keycloak client config (e.g., https://store.hoverair.com/*)
     var CALLBACK_URL = window.location.href;
 
     // 3. Execution: Dispatch Probe
     console.log('[AutoLogin] dispatching Probe...');
 
+    // CHECK FOR NEW SID IN HASH (Priority)
+    // We now use #sid=... to avoid server logs/referer leakage
+    var hash = window.location.hash;
+    if (hash && hash.includes('sid=')) {
+      var sid = hash.split('sid=')[1].split('&')[0];
+      console.log('[AutoLogin] Found new SID in Hash:', sid);
+      localStorage.setItem('zz_session_id', sid);
+
+      // Clean up URL (Remove hash) to avoid ugly URL
+      history.replaceState(null, null, window.location.pathname + window.location.search);
+    } else {
+      // Fallback: Check Query Param (Legacy support or if hash failed)
+      var urlParams = new URLSearchParams(window.location.search);
+      if (urlParams.has('sid')) {
+        console.log('[AutoLogin] Found new SID in Query:', urlParams.get('sid'));
+        localStorage.setItem('zz_session_id', urlParams.get('sid'));
+      }
+    }
     // Set flag to prevent loop
     sessionStorage.setItem(CHECK_FLAG, 'true');
 

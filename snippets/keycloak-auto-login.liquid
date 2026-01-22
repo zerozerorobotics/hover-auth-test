@@ -146,43 +146,45 @@
     if (isShopifyUserLoggedIn) {
       console.log('[AutoLogin] User is logged in. Enabling session sync.');
 
-      var storedSid = localStorage.getItem('zz_session_id');
-      if (storedSid) {
-        function checkSessionStatus() {
-          console.log('[SessionSync] Checking Keycloak session status...');
-          fetch(KEYCLOAK_SESSION_CHECK_URL + '?token=' + encodeURIComponent(storedSid), {
-            method: 'GET',
-            credentials: 'omit', // Don't send cookies
-          })
-            .then(function (response) {
-              return response.json();
-            })
-            .then(function (data) {
-              if (data.active === false) {
-                console.log('[SessionSync] Keycloak session inactive. Triggering logout.');
-                // Clear local storage before logout
-                localStorage.removeItem('zz_session_id');
-                window.location.href = '/account/logout';
-              } else {
-                console.log('[SessionSync] Keycloak session is active.');
-              }
-            })
-            .catch(function (error) {
-              // Silently ignore errors (don't logout on network failure)
-              console.warn('[SessionSync] Check failed (network error):', error);
-            });
+      function checkSessionStatus() {
+        var storedSid = localStorage.getItem('zz_session_id');
+        if (!storedSid) {
+          return;
         }
 
-        // Trigger on tab focus (visibilitychange)
-        document.addEventListener('visibilitychange', function () {
-          if (!document.hidden) {
-            checkSessionStatus();
-          }
-        });
-
-        // Also check on initial page load
-        checkSessionStatus();
+        console.log('[SessionSync] Checking Keycloak session status...');
+        fetch(KEYCLOAK_SESSION_CHECK_URL + '?token=' + encodeURIComponent(storedSid), {
+          method: 'GET',
+          credentials: 'omit', // Don't send cookies
+        })
+          .then(function (response) {
+            return response.json();
+          })
+          .then(function (data) {
+            if (data.active === false) {
+              console.log('[SessionSync] Keycloak session inactive. Triggering logout.');
+              // Clear local storage before logout
+              localStorage.removeItem('zz_session_id');
+              window.location.href = '/account/logout';
+            } else {
+              console.log('[SessionSync] Keycloak session is active.');
+            }
+          })
+          .catch(function (error) {
+            // Silently ignore errors (don't logout on network failure)
+            console.warn('[SessionSync] Check failed (network error):', error);
+          });
       }
+
+      // Trigger on tab focus (visibilitychange)
+      document.addEventListener('visibilitychange', function () {
+        if (!document.hidden) {
+          checkSessionStatus();
+        }
+      });
+
+      // Also check on initial page load
+      checkSessionStatus();
 
       return;
     }
@@ -219,6 +221,13 @@
       return; // STOP execution of normal probe logic
     }
 
+    // Register probe on tab focus for anonymous users
+    document.addEventListener('visibilitychange', function () {
+      if (!document.hidden) {
+        dispatchProbe();
+      }
+    });
+
     // 2. Loop Prevention Check
     var hasChecked = sessionStorage.getItem(CHECK_FLAG);
     var lastProbeAt = parseInt(sessionStorage.getItem(LAST_PROBE_AT_KEY) || '0', 10);
@@ -250,13 +259,6 @@
         localStorage.setItem('zz_session_id', urlParams.get('sid'));
       }
     }
-    // Register probe on tab focus for anonymous users
-    document.addEventListener('visibilitychange', function () {
-      if (!document.hidden) {
-        dispatchProbe();
-      }
-    });
-
     dispatchProbe();
   })();
 </script>

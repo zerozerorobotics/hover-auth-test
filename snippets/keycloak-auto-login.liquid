@@ -187,16 +187,6 @@
       return;
     }
 
-    // 2. Loop Prevention Check
-    var hasChecked = sessionStorage.getItem(CHECK_FLAG);
-    var lastProbeAt = parseInt(sessionStorage.getItem(LAST_PROBE_AT_KEY) || '0', 10);
-    var withinCooldown = lastProbeAt && Date.now() - lastProbeAt < PROBE_COOLDOWN_MS;
-
-    if (hasChecked && withinCooldown) {
-      console.log('[AutoLogin] Already checked in this session (Probe sent). Skipping.');
-      return;
-    }
-
     // -------------------------------------------------------------------------
     // STRATEGY B.2: BOUNCE PAGE HANDLER
     // -------------------------------------------------------------------------
@@ -227,6 +217,16 @@
         window.location.replace('/account');
       }
       return; // STOP execution of normal probe logic
+    }
+
+    // 2. Loop Prevention Check
+    var hasChecked = sessionStorage.getItem(CHECK_FLAG);
+    var lastProbeAt = parseInt(sessionStorage.getItem(LAST_PROBE_AT_KEY) || '0', 10);
+    var withinCooldown = lastProbeAt && Date.now() - lastProbeAt < PROBE_COOLDOWN_MS;
+
+    if (hasChecked && withinCooldown) {
+      console.log('[AutoLogin] Already checked in this session (Probe sent). Skipping.');
+      return;
     }
 
     // 3. Execution: Dispatch Probe

@@ -4,6 +4,9 @@
 {% endcomment %}
 
 <script>
+  window.isShopifyUserLoggedIn = {% if customer %}true{% else %}false{% endif %};
+</script>
+<script>
   /**
    * Shopify Auto-Login (Probe Strategy)
    *
@@ -15,16 +18,48 @@
    *    - state=PROBE (Signal to Filter)
    */
   (function () {
+    // =========================================================================
+    // DUPLICATE INITIALIZATION GUARD
+    // =========================================================================
+    // Prevent duplicate event listeners if this script is loaded multiple times
+    // (e.g., in SPA navigation or multiple Liquid template includes)
+    if (window.__kcAutoLoginInitialized) {
+      return;
+    }
+    window.__kcAutoLoginInitialized = true;
+
+    // =========================================================================
+    // EXPLICIT LOGOUT DETECTION
+    // =========================================================================
+    // If user is on a logout page, clear the session token and set a flag
+    // to prevent auto-login in this browser session.
+    var isLogoutPage =
+      window.location.pathname.includes('/account/logout') ||
+      window.location.pathname.includes('/customer_authentication/logout');
+
+    if (isLogoutPage) {
+      console.log('[AutoLogin] Logout page detected. Clearing session token.');
+      localStorage.removeItem('zz_session_id');
+      sessionStorage.setItem('explicit_logout', 'true');
+      return; // Don't execute any other logic on logout page
+    }
+
+    // If user explicitly logged out in this session, don't auto-login
+    if (sessionStorage.getItem('explicit_logout')) {
+      console.log('[AutoLogin] User explicitly logged out. Skipping auto-login.');
+      return;
+    }
+
     // 0. Surgical Cleanup & Session Persistence
     // -------------------------------------------------------------------------
-    // Capture 'kc_sid' from URL, save to localStorage for device-aware logout,
+    // Capture 'sid' from URL, save to localStorage for device-aware logout,
     // and remove it from URL without reloading.
     var url = new URL(window.location.href);
-    var kcSid = url.searchParams.get('kc_sid');
-    if (kcSid) {
-      console.log('[AutoLogin] Captured Keycloak SID:', kcSid);
-      localStorage.setItem('kc_session_id', kcSid);
-      url.searchParams.delete('kc_sid');
+    var sid = url.searchParams.get('sid');
+    if (sid) {
+      console.log('[AutoLogin] Captured session ID:', sid);
+      localStorage.setItem('zz_session_id', sid);
+      url.searchParams.delete('sid');
       window.history.replaceState(null, null, url.pathname + url.search + url.hash);
     }
     // 1. Shopify User Status Check
@@ -40,10 +75,56 @@
     // -------------------------------------------------------------------------
 
     // Placeholder for local JS validity (Replace this in Shopify)
-    var isShopifyUserLoggedIn = {% if customer %}true{% else %}false{% endif %};
+    var isShopifyUserLoggedIn = window.isShopifyUserLoggedIn || false;
 
+    // =========================================================================
+    // AUTO-LOGOUT SYNC: Check if Keycloak session is still valid
+    // =========================================================================
     if (isShopifyUserLoggedIn) {
-      console.log('[AutoLogin] User is already logged in.');
+      console.log('[AutoLogin] User is logged in. Enabling session sync.');
+
+      var storedSid = localStorage.getItem('zz_session_id');
+      if (storedSid) {
+        // Configuration - REPLACE THESE
+        var KEYCLOAK_SESSION_CHECK_URL =
+          'https://auth-test.zerozerorobotics.com/realms/vcopter/hoverair/session-status';
+
+        function checkSessionStatus() {
+          console.log('[SessionSync] Checking Keycloak session status...');
+          fetch(KEYCLOAK_SESSION_CHECK_URL + '?token=' + encodeURIComponent(storedSid), {
+            method: 'GET',
+            credentials: 'omit', // Don't send cookies
+          })
+            .then(function (response) {
+              return response.json();
+            })
+            .then(function (data) {
+              if (data.active === false) {
+                console.log('[SessionSync] Keycloak session inactive. Triggering logout.');
+                // Clear local storage before logout
+                localStorage.removeItem('zz_session_id');
+                window.location.href = '/account/logout';
+              } else {
+                console.log('[SessionSync] Keycloak session is active.');
+              }
+            })
+            .catch(function (error) {
+              // Silently ignore errors (don't logout on network failure)
+              console.warn('[SessionSync] Check failed (network error):', error);
+            });
+        }
+
+        // Trigger on tab focus (visibilitychange)
+        document.addEventListener('visibilitychange', function () {
+          if (!document.hidden) {
+            checkSessionStatus();
+          }
+        });
+
+        // Also check on initial page load
+        checkSessionStatus();
+      }
+
       return;
     }
 

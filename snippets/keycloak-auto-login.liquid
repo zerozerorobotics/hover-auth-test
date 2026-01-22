@@ -23,6 +23,12 @@
    *    - state=PROBE (Signal to Filter)
    */
   (function () {
+    function consoleDebug(message) {
+      if (window._auth_debug) {
+        console.log(message);
+      }
+    }
+
     // =========================================================================
     // DUPLICATE INITIALIZATION GUARD
     // =========================================================================
@@ -32,6 +38,7 @@
       return;
     }
     window.__kcAutoLoginInitialized = true;
+    consoleDebug('[AutoLogin] Init');
 
     // =========================================================================
     // GLOBAL CONFIGURATION
@@ -43,6 +50,7 @@
       console.error('[AutoLogin] Missing Keycloak configuration.');
       return;
     }
+    consoleDebug('[AutoLogin] Config OK');
 
     // Derived URLs
     var KEYCLOAK_SESSION_CHECK_URL = AUTH_BASE_URL + '/realms/' + REALM + '/hoverair/session-status';
@@ -58,7 +66,7 @@
       window.location.pathname.includes('/customer_authentication/logout');
 
     if (isLogoutPage) {
-      console.log('[AutoLogin] Logout page detected. Clearing session token.');
+      consoleDebug('[AutoLogin] Logout page detected. Clearing session token.');
       localStorage.removeItem('zz_session_id');
       sessionStorage.setItem('explicit_logout', 'true');
       return; // Don't execute any other logic on logout page
@@ -66,7 +74,7 @@
 
     // If user explicitly logged out in this session, don't auto-login
     if (sessionStorage.getItem('explicit_logout')) {
-      console.log('[AutoLogin] User explicitly logged out. Skipping auto-login.');
+      consoleDebug('[AutoLogin] User explicitly logged out. Skipping auto-login.');
       return;
     }
 
@@ -77,7 +85,7 @@
     var url = new URL(window.location.href);
     var sid = url.searchParams.get('sid');
     if (sid) {
-      console.log('[AutoLogin] Captured session ID:', sid);
+      consoleDebug('[AutoLogin] Captured session ID from query');
       localStorage.setItem('zz_session_id', sid);
       url.searchParams.delete('sid');
       window.history.replaceState(null, null, url.pathname + url.search + url.hash);
@@ -101,12 +109,12 @@
     // AUTO-LOGOUT SYNC: Check if Keycloak session is still valid
     // =========================================================================
     if (isShopifyUserLoggedIn) {
-      console.log('[AutoLogin] User is logged in. Enabling session sync.');
+      consoleDebug('[AutoLogin] Shopify logged in -> session sync path');
 
       var storedSid = localStorage.getItem('zz_session_id');
       if (storedSid) {
         function checkSessionStatus() {
-          console.log('[SessionSync] Checking Keycloak session status...');
+          consoleDebug('[SessionSync] Checking Keycloak session status...');
           fetch(KEYCLOAK_SESSION_CHECK_URL + '?token=' + encodeURIComponent(storedSid), {
             method: 'GET',
             credentials: 'omit', // Don't send cookies
@@ -116,12 +124,12 @@
             })
             .then(function (data) {
               if (data.active === false) {
-                console.log('[SessionSync] Keycloak session inactive. Triggering logout.');
+                consoleDebug('[SessionSync] Keycloak session inactive. Triggering logout.');
                 // Clear local storage before logout
                 localStorage.removeItem('zz_session_id');
                 window.location.href = '/account/logout';
               } else {
-                console.log('[SessionSync] Keycloak session is active.');
+                consoleDebug('[SessionSync] Keycloak session is active.');
               }
             })
             .catch(function (error) {
@@ -139,19 +147,13 @@
 
         // Also check on initial page load
         checkSessionStatus();
+      } else {
+        consoleDebug('[SessionSync] No sid in localStorage, skip session check');
       }
 
       return;
     }
-
-    // 2. Loop Prevention Check
-    var CHECK_FLAG = 'keycloak_checked';
-    var hasChecked = sessionStorage.getItem(CHECK_FLAG);
-
-    if (hasChecked) {
-      console.log('[AutoLogin] Already checked in this session (Probe sent). Skipping.');
-      return;
-    }
+    consoleDebug('[AutoLogin] Shopify anonymous -> probe path');
 
     // -------------------------------------------------------------------------
     // STRATEGY B.2: BOUNCE PAGE HANDLER
@@ -160,14 +162,16 @@
     // 1. Extract #sid from URL
     // 2. Save it to LocalStorage
     // 3. Redirect to the 'target' query parameter
+    // NOTE: This must run BEFORE loop-prevention, otherwise the handler
+    //       may never execute after a prior probe in this session.
     if (window.location.pathname.includes('/pages/session-sync')) {
-      console.log('[AutoLogin] Bounce Page Detected.');
+      consoleDebug('[AutoLogin] Bounce Page Detected.');
 
       var hash = window.location.hash;
       if (hash && hash.includes('sid=')) {
         var sid = hash.split('sid=')[1].split('&')[0]; // Simple extract
         if (sid) {
-          console.log('[AutoLogin] Captured SID from Bounce Page:', sid);
+          consoleDebug('[AutoLogin] Captured SID from Bounce Page');
           localStorage.setItem('zz_session_id', sid);
           // Optional: Clear hash to be clean, though we are redirecting anyway
         }
@@ -180,13 +184,22 @@
         debugger;
       }
       if (target) {
-        console.log('[AutoLogin] Bouncing to target:', target);
+        consoleDebug('[AutoLogin] Bouncing to target');
         window.location.replace(target);
       } else {
-        console.log('[AutoLogin] No target found on Bounce Page. Redirecting to account.');
+        consoleDebug('[AutoLogin] No target found on Bounce Page. Redirecting to account.');
         window.location.replace('/account');
       }
       return; // STOP execution of normal probe logic
+    }
+
+    // 2. Loop Prevention Check
+    var CHECK_FLAG = 'keycloak_checked';
+    var hasChecked = sessionStorage.getItem(CHECK_FLAG);
+
+    if (hasChecked) {
+      consoleDebug('[AutoLogin] Already checked in this session (Probe sent). Skipping.');
+      return;
     }
 
     // Use current page as redirect_uri - Keycloak will return to this exact URL
@@ -194,14 +207,14 @@
     var CALLBACK_URL = window.location.href;
 
     // 3. Execution: Dispatch Probe
-    console.log('[AutoLogin] dispatching Probe...');
+    consoleDebug('[AutoLogin] dispatching Probe...');
 
     // CHECK FOR NEW SID IN HASH (Priority)
     // We now use #sid=... to avoid server logs/referer leakage
     var hash = window.location.hash;
     if (hash && hash.includes('sid=')) {
       var sid = hash.split('sid=')[1].split('&')[0];
-      console.log('[AutoLogin] Found new SID in Hash:', sid);
+      consoleDebug('[AutoLogin] Found new SID in Hash');
       localStorage.setItem('zz_session_id', sid);
 
       // Clean up URL (Remove hash) to avoid ugly URL
@@ -210,7 +223,7 @@
       // Fallback: Check Query Param (Legacy support or if hash failed)
       var urlParams = new URLSearchParams(window.location.search);
       if (urlParams.has('sid')) {
-        console.log('[AutoLogin] Found new SID in Query:', urlParams.get('sid'));
+        consoleDebug('[AutoLogin] Found new SID in Query');
         localStorage.setItem('zz_session_id', urlParams.get('sid'));
       }
     }

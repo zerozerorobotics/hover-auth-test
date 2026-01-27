@@ -136,9 +136,9 @@
     },
     "content_for_index": [],
     "blocks": {
-      "13467427560400605998": {
-        "type": "shopify://apps/sw-cache/blocks/sw-proxy/019bf993-7dc9-71d4-bc40-920c28a09a92",
-        "disabled": true,
+      "11700227425051979250": {
+        "type": "shopify://apps/source-cache/blocks/sw_injector/019bff3d-6c96-7492-8c85-56a46bcc14af",
+        "disabled": false,
         "settings": {}
       }
     },

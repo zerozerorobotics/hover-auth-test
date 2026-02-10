@@ -32,8 +32,8 @@
       keycloakUrl: "https://auth-test.zerozeroplatform.com/realms/vcopter/protocol/openid-connect/auth",
       clientId: window.location.hostname === 'central-test.zerozeroplatform.com' ? 'shopify-fake-store-central' : 'shopify-fake-store',
       redirectUri: 'https://static.zerozeroplatform.com/session-check',
-      loginRedirectUri: window.location.origin + '/customer_authentication/login',
-      logoutUri: window.location.origin + '/customer_authentication/logout',
+      loginRedirectUri: '/customer_authentication/login',
+      logoutUri: '/customer_authentication/logout',
       // V4: Cooldown is less critical because we rely on Hint Cookie, but still good for safety
       iframeCooldownMs: 5 * 1000
     };

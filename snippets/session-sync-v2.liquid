@@ -52,6 +52,7 @@
     // --- V4 Phase 1: Eager Check (The "V2" Part) ---
     // If we have the Hint Cookie, and we are NOT logged in to Shopify, redirect IMMEDIATELY.
     if (!STATE.isLoggedIn && getHintCookie() === '1') {
+      debugger;
       console.log('[SessionSyncV4] Hint found. Eager redirect.');
       var probeUrl = CONFIG.keycloakUrl + 
         '?client_id=' + encodeURIComponent(CONFIG.clientId) +

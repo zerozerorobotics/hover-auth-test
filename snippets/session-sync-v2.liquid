@@ -13,11 +13,12 @@
      - Keycloak SPI handles PROBE state specially.
      - Cooldown (60s) prevents redirect loops.
 
-  Phase 2: Iframe Background Check (Fallback).
-     - For anonymous users without Hint Cookie (or in Cooldown):
+  Phase 2: Iframe Background Check (Login + Logout Sync).
+     - For ALL users (both anonymous and logged-in):
        Silent iframe check via Cloudflare Worker (bypasses X-Frame-Options).
-     - If active: set Hint Cookie + redirect to login.
-     - If inactive: clear stale Hint Cookie (self-healing).
+     - Anonymous + active: set Hint Cookie + redirect to login.
+     - Anonymous + inactive: clear stale Hint Cookie (self-healing).
+     - Logged-in + inactive: clear Hint Cookie + redirect to logout (cross-site logout sync).
 
   Dependencies:
   - Cloudflare Worker at static.zerozeroplatform.com/session-check (Iframe redirect_uri)
@@ -32,6 +33,7 @@
       clientId: window.location.hostname === 'central-test.zerozeroplatform.com' ? 'shopify-fake-store-central' : 'shopify-fake-store',
       redirectUri: 'https://static.zerozeroplatform.com/session-check',
       loginRedirectUri: window.location.origin + '/customer_authentication/login',
+      logoutUri: window.location.origin + '/customer_authentication/logout',
       // V4: Cooldown is less critical because we rely on Hint Cookie, but still good for safety
       iframeCooldownMs: 5 * 1000
     };
@@ -98,11 +100,12 @@
       debugger; // Phase 0: Init
       if (STATE.isLoggedIn) {
         // --- V4 Critical: Set Hint Cookie on Login ---
-        // When user logs in on Site A, we MUST set this cookie so Site B knows.
         setHintCookie();
-        // ---------------------------------------------
-        return;
       }
+
+      // --- V4 Phase 2: Unified Iframe Check (Login + Logout Sync) ---
+      // For anonymous users: detect active Keycloak session → auto login
+      // For logged-in users: detect inactive Keycloak session → auto logout
       checkSession();
       document.addEventListener('visibilitychange', function() {
         if (!document.hidden) checkSession();
@@ -160,12 +163,19 @@
              console.log('[SessionSyncV4] Active! Redirecting to login...');
              window.location.href = CONFIG.loginRedirectUri + '?return_to=' + encodeURIComponent(window.location.pathname);
           }
+          // Logged-in + active → normal, do nothing
         } else {
-          // Self-Correction: If we thought we were logged in (Hint), but aren't...
+          // --- Logout Sync: Logged-in user + Keycloak inactive ---
+          if (STATE.isLoggedIn) {
+             console.log('[SessionSyncV4] Keycloak inactive. Syncing logout.');
+             clearHintCookie();
+             window.location.href = CONFIG.logoutUri;
+             return;
+          }
+          // --- Self-Correction: Anonymous user + stale cookie ---
           if (getHintCookie()) {
              console.warn('[SessionSyncV4] Stale Hint Cookie. Clearing.');
              clearHintCookie();
-             // No need to redirect, just stay anon.
           }
         }
       }

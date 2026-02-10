@@ -28,16 +28,16 @@
 
 {% comment %} Client ID Map {% endcomment %}
 {% if shop.domain == 'central-test.zerozeroplatform.com' %}
-  {% assign clientId = 'shopify-fake-store-central' %}
+  {% assign client_id = 'shopify-fake-store-central' %}
 {% else %}
-  {% assign clientId = 'shopify-fake-store' %}
+  {% assign client_id = 'shopify-fake-store' %}
 {% endif %}
 
 <script>
   (function() {
     var CONFIG = {
       keycloakUrl: "https://auth-test.zerozeroplatform.com/realms/vcopter/protocol/openid-connect/auth",
-      clientId: '{{ clientId }}',
+      clientId: '{{ client_id }}',
       redirectUri: 'https://static.zerozeroplatform.com/session-check',
       loginRedirectUri: '/customer_authentication/login',
       logoutUri: '/account/logout',

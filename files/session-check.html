@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Session Check</title>
+</head>
+<body>
+  <script>
+    (function() {
+      var message = { type: 'KEYCLOAK_SESSION_STATUS', status: 'unknown' };
+      var params = new URLSearchParams(window.location.hash.substring(1)); // OIDC often uses hash
+      
+      // Fallback to query params if hash is empty (for some response_types)
+      if (!params.has('code') && !params.has('error') && !params.has('session_state')) {
+        params = new URLSearchParams(window.location.search);
+      }
+
+      if (params.has('code')) {
+        message.status = 'active';
+        message.code = params.get('code');
+        message.session_state = params.get('session_state');
+      } else if (params.has('error')) {
+        message.status = 'inactive';
+        message.error = params.get('error');
+        message.error_description = params.get('error_description');
+      } else if (params.has('session_state')) {
+         // Implicit check might just return session_state without code if prompt=none and user logged in but response_type=none? 
+         // But usually response_type=code returns code.
+         // If we are here, something is weird or prompt=none verified session but we didn't ask for code?
+         // For now, assume if no code/error, it might be unknown.
+      }
+
+      // Send back to parent (Store)
+      // We use '*' as targetOrigin because this static file might be used by multiple store domains (us-test, central-test).
+      // The Parent (Store) is responsible for verifying the event.origin (cdn.shopify.com) if strict security is needed.
+      if (window.parent && window.parent !== window) {
+        window.parent.postMessage(message, '*');
+      }
+    })();
+  </script>
+</body>
+</html>

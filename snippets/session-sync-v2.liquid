@@ -20,7 +20,7 @@
     var CONFIG = {
       keycloakUrl: "https://auth-test.zerozeroplatform.com/realms/vcopter/protocol/openid-connect/auth",
       clientId: window.location.hostname === 'central-test.zerozeroplatform.com' ? 'shopify-fake-store-central' : 'shopify-fake-store',
-      redirectUri: window.location.origin + '/pages/session-check',
+      redirectUri: 'https://static.zerozeroplatform.com/session-check',
       loginRedirectUri: window.location.origin + '/account/login', // Use standard Shopify login or specialized proxy
       cooldownMs: 10 * 1000, // Reduced to 10s for Shared Domain (Iframe is reliable)
       iframeCooldownMs: 5 * 1000 // 5 seconds for Iframe Check (prevent spamming)

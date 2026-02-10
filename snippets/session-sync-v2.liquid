@@ -1,18 +1,28 @@
 {% comment %}
-  Session Sync V2 (Hybrid Strategy)
-  Intent: Synchronize Shopify session with Keycloak (SSO) silently when possible.
+  Session Sync V4 (Hybrid Hint Cookie Strategy)
+  Intent: Cross-domain SSO synchronization between Shopify stores via Keycloak.
 
   Strategy:
-  1. Primary: Silent Iframe Check (prompt=none).
-     - Works in Chrome/Edge/Firefox(sometimes).
-     - Fast, no reload.
-  2. Fallback: Top-Level Redirect (prompt=none).
-     - Triggered ONLY if Iframe returns 'login_required' AND Cooldown has expired.
-     - Required for Safari (ITP blocks 3rd-party cookies in iframe).
+  Phase 0: Set Hint Cookie on Login.
+     - When user logs in on Site A, set KC_LOGGED_IN=1 on .zerozeroplatform.com.
+     - This signals to Site B that a Keycloak session exists.
+
+  Phase 1: Eager Redirect (Top-Level, Immediate).
+     - On page load, if KC_LOGGED_IN=1 && Shopify user is anonymous:
+       Redirect to Keycloak (prompt=none, state=PROBE).
+     - Keycloak SPI handles PROBE state specially.
+     - Cooldown (60s) prevents redirect loops.
+
+  Phase 2: Iframe Background Check (Fallback).
+     - For anonymous users without Hint Cookie (or in Cooldown):
+       Silent iframe check via Cloudflare Worker (bypasses X-Frame-Options).
+     - If active: set Hint Cookie + redirect to login.
+     - If inactive: clear stale Hint Cookie (self-healing).
 
   Dependencies:
-  - templates/page.session-check.liquid (Callback URI)
-  - Keycloak Client Config (Valid Redirect URI)
+  - Cloudflare Worker at static.zerozeroplatform.com/session-check (Iframe redirect_uri)
+  - Keycloak Client Config (Valid Redirect URIs, SPI Provider for state=PROBE)
+  - KC_LOGGED_IN cookie on .zerozeroplatform.com (Shared Hint)
 {% endcomment %}
 
 <script>
@@ -21,7 +31,7 @@
       keycloakUrl: "https://auth-test.zerozeroplatform.com/realms/vcopter/protocol/openid-connect/auth",
       clientId: window.location.hostname === 'central-test.zerozeroplatform.com' ? 'shopify-fake-store-central' : 'shopify-fake-store',
       redirectUri: 'https://static.zerozeroplatform.com/session-check',
-      loginRedirectUri: window.location.origin + '/account/login',
+      loginRedirectUri: window.location.origin + '/customer_authentication/login',
       // V4: Cooldown is less critical because we rely on Hint Cookie, but still good for safety
       iframeCooldownMs: 5 * 1000
     };

@@ -165,7 +165,7 @@
               console.log('[SessionSync] Keycloak session inactive. Triggering logout.');
               // Clear local storage before logout
               localStorage.removeItem('zz_session_id');
-              window.location.href = '/account/logout';
+              window.location.href = '/customer_authentication/logout';
             } else {
               console.log('[SessionSync] Keycloak session is active.');
             }

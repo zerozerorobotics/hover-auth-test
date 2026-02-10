@@ -314,14 +314,15 @@
       {% else %}
         ❌ 未登录 (Anonymous)
       {% endif %}
-      {% comment %}
-        <span style="font-size:14px; display:block; margin-top:4px; opacity:0.8;">
-          Host: window.location.host KC_LOGGED_IN:
-          <script>
-            document.write(document.cookie.match(/KC_LOGGED_IN=([^;]+)/)?.[1] || 'N/A');
-          </script>
-        </span>
-      {% endcomment %}
+      <span style="font-size:14px; display:block; margin-top:4px; opacity:0.8;">
+        Host: <span id="auth-login-host"></span> <br>
+        KC_LOGGED_IN: <span id="auth-login-kc-logged-in"></span>
+      </span>
+      <script>
+        document.getElementById('auth-login-host').textContent = window.location.host;
+        document.getElementById('auth-login-kc-logged-in').textContent =
+          document.cookie.match(/KC_LOGGED_IN=([^;]+)/)?.[1] || 'N/A';
+      </script>
     </div>
     <!-- /V4 Debug -->
     <a class="skip-to-content-link button visually-hidden" href="#MainContent">

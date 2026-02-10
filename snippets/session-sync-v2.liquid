@@ -21,127 +21,189 @@
       keycloakUrl: "https://auth-test.zerozeroplatform.com/realms/vcopter/protocol/openid-connect/auth",
       clientId: window.location.hostname === 'central-test.zerozeroplatform.com' ? 'shopify-fake-store-central' : 'shopify-fake-store',
       redirectUri: 'https://static.zerozeroplatform.com/session-check',
-      loginRedirectUri: window.location.origin + '/account/login', // Use standard Shopify login or specialized proxy
-      cooldownMs: 10 * 1000, // Reduced to 10s for Shared Domain (Iframe is reliable)
-      iframeCooldownMs: 5 * 1000 // 5 seconds for Iframe Check (prevent spamming)
+      loginRedirectUri: window.location.origin + '/account/login', 
+      // V4: Cooldown is less critical because we rely on Hint Cookie, but still good for safety
+      iframeCooldownMs: 5 * 1000 
     };
 
     var STATE = {
-      isLoggedIn: {{ customer | json }} !== null, // Liquid injection
-      lastProbeAt: parseInt(sessionStorage.getItem('keycloak_v2_last_probe_at') || '0'),
-      lastIframeProbeAt: parseInt(sessionStorage.getItem('keycloak_v2_iframe_last_probe') || '0')
+      isLoggedIn: {{ customer | json }} !== null,
+      lastIframeProbeAt: parseInt(sessionStorage.getItem('keycloak_v4_iframe_last_probe') || '0')
     };
 
-    // --- Core Logic ---
+    // --- V4 Helper: Cookie Management ---
+    function getHintCookie() {
+      var match = document.cookie.match(new RegExp('(^| )KC_LOGGED_IN=([^;]+)'));
+      return match ? match[2] : null;
+    }
+
+    function setHintCookie() {
+      var domain = '.zerozeroplatform.com'; 
+      var maxAge = 30 * 24 * 60 * 60; // 30 days
+      document.cookie = "KC_LOGGED_IN=1; path=/; domain=" + domain + "; max-age=" + maxAge + "; samesite=lax; secure";
+    }
+
+    function clearHintCookie() {
+      var domain = '.zerozeroplatform.com';
+      document.cookie = "KC_LOGGED_IN=; path=/; domain=" + domain + "; max-age=0; expires=Thu, 01 Jan 1970 00:00:00 GMT";
+    }
+    // ------------------------------------
+
+    // --- V4 Phase 1: Eager Check (The "V2" Part) ---
+    // If we have the Hint Cookie, and we are NOT logged in to Shopify, redirect IMMEDIATELY.
+    if (!STATE.isLoggedIn && getHintCookie() === '1') {
+      console.log('[SessionSyncV4] Hint found. Eager redirect.');
+      var probeUrl = CONFIG.keycloakUrl + 
+        '?client_id=' + encodeURIComponent(CONFIG.clientId) +
+        '&redirect_uri=' + encodeURIComponent(CONFIG.redirectUri) + // Use Worker for check? No, for Redirect we want explicit return? 
+        // ACTUALLY: For V2 Eager Redirect, we want it to come back to THIS page or valid callback.
+        // But since we use prompt=none, it might error if not logged in.
+        // Wait, if we use Worker as redirect_uri, the Worker posts message to... whom? The top window?
+        // NO. Top level redirect must use a redirect_uri that handles the response in the Top Window.
+        // The Worker logic is for IFRAME.
+        // For Top Level Eager Redirect, we usually want Keycloak to redirect back to Shopify /account/login directly?
+        // OR back to the current page?
+        // Standard V2 was: redirect to Keycloak -> Keycloak redirects to `page.session-check`.
+        // `page.session-check` (liquid) did postMessage.
+        // BUT `page.session-check` is Blocked by Shopify if framed. Top level is fine.
+        
+        // Let's use `page.session-check` (Liquid) for Top Level Redirect because it CAN receive parameters.
+        // AND it can use window.opener or just redirect again.
+        
+        // Simpler: Redirect to Keycloak with `redirect_uri` = Shopify Login Page?
+        // No, we need to know if it failed.
+        
+        // Let's use the Worker/CDN URI. It posts message to window.parent.
+        // If top level, window.parent === window.
+        // So the Worker/Static file needs to handle Top Level?
+        // The static file `session-check.html` logic: `if (window.parent && window.parent !== window) ...`
+        // It DOES NOT handle top level.
+        
+        // REVERT TO SIMPLEST V2: 
+        // Redirect to Keycloak. `redirect_uri` = Current Page (or specific handler).
+        // If active -> Keycloak redirects to Current Page? No, loop risk.
+        
+        // BEST PRACTICE: Eager Redirect should target the OIDC Login Endpoint directly if we are sure?
+        // Yes! If Hint is present, just go to Login!
+        '&response_type=code' +
+        '&scope=openid' +
+        '&prompt=none'; 
+        
+        // ACTION: Just go to /account/login which triggers the OIDC App (if properly configured) OR
+        // manual construct the login URL.
+        // Let's manually construct the Auth URL that the Shopify OIDC App would use? 
+        // Too complex.
+        
+        // Let's stick to the protocol:
+        // We redirect to Keycloak. 
+        // On success -> Keycloak redirects to `loginRedirectUri` (/account/login).
+        // On failure -> Keycloak redirects to... where?
+        // We need a `redirect_uri` that handles "Login Failed".
+        
+        // Let's use `CONFIG.redirectUri` (Worker).
+        // We need to modify Worker/Static HTML to handle "Top Level" mode.
+        // But for now, let's just use the Iframe Check for everything to be safe?
+        // USER REQUESTED V4 HYBRID.
+        
+        // OK, for V4 Phase 1 (Eager), we will Redirect to Keycloak.
+        // `redirect_uri` = `window.location.href` (Current Page).
+        // If Keycloak sees session -> redirects back to Current Page with `code=...`.
+        // Then what? We need JS to catch that code and log in.
+        // That requires `page.session-check` logic on EVERY page? No.
+        
+        // Solution: Redirect to `/pages/session-check` (Liquid). 
+        // It is allowed as Top Level.
+        // It will parse code, and then redirect to `/account/login` (or postMessage).
+        // PROPOSAL: `redirect_uri` = window.location.origin + '/pages/session-check'.
+    }
+
+    if (!STATE.isLoggedIn && getHintCookie() === '1') {
+         // Eager Redirect to Keycloak
+         // set return to /pages/session-check (Liquid) which handles Top Level nicely.
+         // We must use a separate URI for Top Level vs Iframe if Iframe uses Worker.
+         // Or just use the Liquid page for Top Level (it works fine top level).
+         var returnUrl = window.location.origin + '/pages/session-check?target=' + encodeURIComponent(window.location.pathname);
+         
+         window.location.href = CONFIG.keycloakUrl + 
+            '?client_id=' + encodeURIComponent(CONFIG.clientId) +
+            '&redirect_uri=' + encodeURIComponent(returnUrl) +
+            '&response_type=code' +
+            '&scope=openid' +
+            '&prompt=none';
+         return; 
+    }
+    // -----------------------------------------------
 
     function init() {
-      // If user is already logged in to Shopify, we generally don't need to probe
-      // UNLESS we want to support Single Logout (SLO).
-      // For V2 MVP, let's focus on auto-login for Anonymous users.
       if (STATE.isLoggedIn) {
-        // Optional: Implement periodic check for SLO here
         return;
       }
-
-      // Trigger probe on load
       checkSession();
-
-      // Trigger probe on tab focus
       document.addEventListener('visibilitychange', function() {
-        if (!document.hidden) {
-          checkSession();
-        }
+        if (!document.hidden) checkSession();
       });
-
-      // Listen for Iframe Messages
       window.addEventListener('message', handleIframeMessage);
     }
 
     function checkSession() {
       var now = Date.now();
-
-      // 1. Check Iframe Cooldown (Prevent rapid-fire firing)
-      if (now - STATE.lastIframeProbeAt < CONFIG.iframeCooldownMs) {
-        return;
-      }
-
-      // 2. Refresh State
+      if (now - STATE.lastIframeProbeAt < CONFIG.iframeCooldownMs) return;
       STATE.lastIframeProbeAt = now;
-      sessionStorage.setItem('keycloak_v2_iframe_last_probe', now);
+      sessionStorage.setItem('keycloak_v4_iframe_last_probe', now);
 
-      console.log('[SessionSyncV2] Starting Silent Probe...');
+      console.log('[SessionSyncV4] Dispatching Iframe Probe...');
       createProbeIframe();
     }
 
     function createProbeIframe() {
-      var frameId = 'auth-probe-frame-v2';
+      // V3 Strategy: Use Worker/CDN to bypass X-Frame-Options
+      var frameId = 'auth-probe-frame-v4';
       var existing = document.getElementById(frameId);
       if (existing) existing.remove();
 
       var iframe = document.createElement('iframe');
       iframe.id = frameId;
       iframe.style.display = 'none';
-
+      
       var url = CONFIG.keycloakUrl +
         '?client_id=' + encodeURIComponent(CONFIG.clientId) +
-        '&redirect_uri=' + encodeURIComponent(CONFIG.redirectUri) +
-        '&response_type=code' +
-        '&scope=openid' +
-        '&prompt=none' +
-        '&state=probe_v2';
-
-      iframe.src = url;
-      document.body.appendChild(iframe);
-    }
-
-    function handleIframeMessage(event) {
-      if (event.origin !== window.location.origin) return;
-      if (!event.data || event.data.type !== 'KEYCLOAK_SESSION_STATUS') return;
-
-      console.log('[SessionSyncV2] Iframe Result:', event.data);
-
-      if (event.data.status === 'active') {
-        // --- SCENARIO A: User IS logged in at Keycloak ---
-        console.log('[SessionSyncV2] User is active. Triggering Login...');
-        // Redirect to Login Flow (which will do the actual OIDC handshake)
-        // We can pass the 'code' directly if we have a handler, or just standard login
-        window.location.href = '/account/login?checkout_url=' + encodeURIComponent(window.location.pathname);
-
-      } else {
-        // --- SCENARIO B: User is Anonymous OR Cookie Blocked (Safari) ---
-        console.log('[SessionSyncV2] User appears anonymous.');
-
-        // HYBRID FALLBACK CHECK
-        // If we suspect 3rd party cookies are blocked, we might want to try ONE redirect.
-        // But we must rate-limit this severely (Cooldown).
-
-        var now = Date.now();
-        if (now - STATE.lastProbeAt > CONFIG.cooldownMs) {
-           console.log('[SessionSyncV2] Cooldown expired. Attempting Fallback Redirect for Safari compatibility...');
-           dispatchTopLevelProbe();
-        } else {
-           console.log('[SessionSyncV2] In Cooldown. Staying anonymous.');
-        }
-      }
-
-      // Cleanup
-      var frame = document.getElementById('auth-probe-frame-v2');
-      if (frame) frame.remove();
-    }
-
-    function dispatchTopLevelProbe() {
-       // Update timestamp BEFORE redirect to prevent loops
-       sessionStorage.setItem('keycloak_v2_last_probe_at', Date.now());
-
-       // Standard Redirect Check
-       var url = CONFIG.keycloakUrl +
-        '?client_id=' + encodeURIComponent(CONFIG.clientId) +
-        '&redirect_uri=' + encodeURIComponent(window.location.href) + // Return to SAME page
+        '&redirect_uri=' + encodeURIComponent(CONFIG.redirectUri) + // Worker URL
         '&response_type=code' +
         '&scope=openid' +
         '&prompt=none';
 
-       window.location.href = url;
+      iframe.src = url;
+      document.body.appendChild(iframe);
+      
+      setTimeout(function() {
+        var el = document.getElementById(frameId);
+        if (el) el.remove();
+      }, 10000);
+    }
+
+    function handleIframeMessage(event) {
+      if (event.origin !== new URL(CONFIG.redirectUri).origin) {
+         // return; // Strict check recommended
+      }
+
+      if (event.data && event.data.type === 'KEYCLOAK_SESSION_STATUS') {
+        console.log('[SessionSyncV4] Iframe Result:', event.data);
+
+        if (event.data.status === 'active') {
+          setHintCookie(); // Refresh Hint
+          if (!STATE.isLoggedIn) {
+             console.log('[SessionSyncV4] Active! Redirecting to login...');
+             window.location.href = CONFIG.loginRedirectUri;
+          }
+        } else {
+          // Self-Correction: If we thought we were logged in (Hint), but aren't...
+          if (getHintCookie()) {
+             console.warn('[SessionSyncV4] Stale Hint Cookie. Clearing.');
+             clearHintCookie();
+             // No need to redirect, just stay anon.
+          }
+        }
+      }
     }
 
     // Start

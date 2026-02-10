@@ -158,7 +158,7 @@
           setHintCookie(); // Refresh Hint
           if (!STATE.isLoggedIn) {
              console.log('[SessionSyncV4] Active! Redirecting to login...');
-             window.location.href = CONFIG.loginRedirectUri;
+             window.location.href = CONFIG.loginRedirectUri + '?redirect_to=' + encodeURIComponent(window.location.href);
           }
         } else {
           // Self-Correction: If we thought we were logged in (Hint), but aren't...

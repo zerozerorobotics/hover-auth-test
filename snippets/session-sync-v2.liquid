@@ -21,9 +21,9 @@
       keycloakUrl: "https://auth-test.zerozeroplatform.com/realms/vcopter/protocol/openid-connect/auth",
       clientId: window.location.hostname === 'central-test.zerozeroplatform.com' ? 'shopify-fake-store-central' : 'shopify-fake-store',
       redirectUri: 'https://static.zerozeroplatform.com/session-check',
-      loginRedirectUri: window.location.origin + '/account/login', 
+      loginRedirectUri: window.location.origin + '/account/login',
       // V4: Cooldown is less critical because we rely on Hint Cookie, but still good for safety
-      iframeCooldownMs: 5 * 1000 
+      iframeCooldownMs: 5 * 1000
     };
 
     var STATE = {
@@ -38,7 +38,7 @@
     }
 
     function setHintCookie() {
-      var domain = '.zerozeroplatform.com'; 
+      var domain = '.zerozeroplatform.com';
       var maxAge = 30 * 24 * 60 * 60; // 30 days
       document.cookie = "KC_LOGGED_IN=1; path=/; domain=" + domain + "; max-age=" + maxAge + "; samesite=lax; secure";
     }
@@ -51,92 +51,41 @@
 
     // --- V4 Phase 1: Eager Check (The "V2" Part) ---
     // If we have the Hint Cookie, and we are NOT logged in to Shopify, redirect IMMEDIATELY.
-    if (!STATE.isLoggedIn && getHintCookie() === '1') {
+    // Use Cooldown to prevent loops if redirect fails (e.g., login failed, cookie stale).
+
+    var lastEagerProbe = parseInt(sessionStorage.getItem('keycloak_v4_eager_ts') || '0');
+    var now = Date.now();
+    var EAGER_COOLDOWN = 60 * 1000; // 1 minute safety
+
+    if (!STATE.isLoggedIn && getHintCookie() === '1' && (now - lastEagerProbe > EAGER_COOLDOWN)) {
       debugger;
       console.log('[SessionSyncV4] Hint found. Eager redirect.');
-      var probeUrl = CONFIG.keycloakUrl + 
+
+      sessionStorage.setItem('keycloak_v4_eager_ts', now); // Prevent Loop
+
+      // V1 Style: Redirect to Keycloak aiming to return to Current Page
+      // If session is active, Keycloak redirects back with ?code=...
+      // If session inactive, Keycloak redirects back with ?error=login_required
+      // In both cases, we handle it:
+      // - Success: Shopify App handles code exchange (Standard OIDC)
+      // - Failure: We stay anonymous, then Phase 2 (Iframe) will clean up the Stale Hint Cookie.
+
+      var callbackUrl = window.location.href; // V1 style
+      var probeUrl = CONFIG.keycloakUrl +
         '?client_id=' + encodeURIComponent(CONFIG.clientId) +
-        '&redirect_uri=' + encodeURIComponent(CONFIG.redirectUri) + // Use Worker for check? No, for Redirect we want explicit return? 
-        // ACTUALLY: For V2 Eager Redirect, we want it to come back to THIS page or valid callback.
-        // But since we use prompt=none, it might error if not logged in.
-        // Wait, if we use Worker as redirect_uri, the Worker posts message to... whom? The top window?
-        // NO. Top level redirect must use a redirect_uri that handles the response in the Top Window.
-        // The Worker logic is for IFRAME.
-        // For Top Level Eager Redirect, we usually want Keycloak to redirect back to Shopify /account/login directly?
-        // OR back to the current page?
-        // Standard V2 was: redirect to Keycloak -> Keycloak redirects to `page.session-check`.
-        // `page.session-check` (liquid) did postMessage.
-        // BUT `page.session-check` is Blocked by Shopify if framed. Top level is fine.
-        
-        // Let's use `page.session-check` (Liquid) for Top Level Redirect because it CAN receive parameters.
-        // AND it can use window.opener or just redirect again.
-        
-        // Simpler: Redirect to Keycloak with `redirect_uri` = Shopify Login Page?
-        // No, we need to know if it failed.
-        
-        // Let's use the Worker/CDN URI. It posts message to window.parent.
-        // If top level, window.parent === window.
-        // So the Worker/Static file needs to handle Top Level?
-        // The static file `session-check.html` logic: `if (window.parent && window.parent !== window) ...`
-        // It DOES NOT handle top level.
-        
-        // REVERT TO SIMPLEST V2: 
-        // Redirect to Keycloak. `redirect_uri` = Current Page (or specific handler).
-        // If active -> Keycloak redirects to Current Page? No, loop risk.
-        
-        // BEST PRACTICE: Eager Redirect should target the OIDC Login Endpoint directly if we are sure?
-        // Yes! If Hint is present, just go to Login!
+        '&redirect_uri=' + encodeURIComponent(callbackUrl) +
         '&response_type=code' +
         '&scope=openid' +
-        '&prompt=none'; 
-        
-        // ACTION: Just go to /account/login which triggers the OIDC App (if properly configured) OR
-        // manual construct the login URL.
-        // Let's manually construct the Auth URL that the Shopify OIDC App would use? 
-        // Too complex.
-        
-        // Let's stick to the protocol:
-        // We redirect to Keycloak. 
-        // On success -> Keycloak redirects to `loginRedirectUri` (/account/login).
-        // On failure -> Keycloak redirects to... where?
-        // We need a `redirect_uri` that handles "Login Failed".
-        
-        // Let's use `CONFIG.redirectUri` (Worker).
-        // We need to modify Worker/Static HTML to handle "Top Level" mode.
-        // But for now, let's just use the Iframe Check for everything to be safe?
-        // USER REQUESTED V4 HYBRID.
-        
-        // OK, for V4 Phase 1 (Eager), we will Redirect to Keycloak.
-        // `redirect_uri` = `window.location.href` (Current Page).
-        // If Keycloak sees session -> redirects back to Current Page with `code=...`.
-        // Then what? We need JS to catch that code and log in.
-        // That requires `page.session-check` logic on EVERY page? No.
-        
-        // Solution: Redirect to `/pages/session-check` (Liquid). 
-        // It is allowed as Top Level.
-        // It will parse code, and then redirect to `/account/login` (or postMessage).
-        // PROPOSAL: `redirect_uri` = window.location.origin + '/pages/session-check'.
-    }
+        '&prompt=none' + // CRITICAL: Silent Check
+        '&state=PROBE';  // CRITICAL: Signal to Keycloak SPI Provider
 
-    if (!STATE.isLoggedIn && getHintCookie() === '1') {
-         // Eager Redirect to Keycloak
-         // set return to /pages/session-check (Liquid) which handles Top Level nicely.
-         // We must use a separate URI for Top Level vs Iframe if Iframe uses Worker.
-         // Or just use the Liquid page for Top Level (it works fine top level).
-         var returnUrl = window.location.origin + '/pages/session-check?target=' + encodeURIComponent(window.location.pathname);
-         
-         window.location.href = CONFIG.keycloakUrl + 
-            '?client_id=' + encodeURIComponent(CONFIG.clientId) +
-            '&redirect_uri=' + encodeURIComponent(returnUrl) +
-            '&response_type=code' +
-            '&scope=openid' +
-            '&prompt=none';
-         return; 
+      window.location.href = probeUrl;
+      return;
     }
     // -----------------------------------------------
 
     function init() {
-      debugger; // Phase 0: Init    
+      debugger; // Phase 0: Init
       if (STATE.isLoggedIn) {
         // --- V4 Critical: Set Hint Cookie on Login ---
         // When user logs in on Site A, we MUST set this cookie so Site B knows.
@@ -170,7 +119,7 @@
       var iframe = document.createElement('iframe');
       iframe.id = frameId;
       iframe.style.display = 'none';
-      
+
       var url = CONFIG.keycloakUrl +
         '?client_id=' + encodeURIComponent(CONFIG.clientId) +
         '&redirect_uri=' + encodeURIComponent(CONFIG.redirectUri) + // Worker URL
@@ -180,7 +129,7 @@
 
       iframe.src = url;
       document.body.appendChild(iframe);
-      
+
       setTimeout(function() {
         var el = document.getElementById(frameId);
         if (el) el.remove();

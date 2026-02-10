@@ -33,7 +33,7 @@
       clientId: window.location.hostname === 'central-test.zerozeroplatform.com' ? 'shopify-fake-store-central' : 'shopify-fake-store',
       redirectUri: 'https://static.zerozeroplatform.com/session-check',
       loginRedirectUri: '/customer_authentication/login',
-      logoutUri: '/customer_authentication/logout',
+      logoutUri: '/account/logout',
       // V4: Cooldown is less critical because we rely on Hint Cookie, but still good for safety
       iframeCooldownMs: 5 * 1000
     };

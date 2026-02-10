@@ -169,7 +169,7 @@
           if (STATE.isLoggedIn) {
              console.log('[SessionSyncV4] Keycloak inactive. Syncing logout.');
              clearHintCookie();
-             window.location.href = CONFIG.logoutUri;
+             window.location.href = CONFIG.logoutUri + '?return_to=' + encodeURIComponent(window.location.pathname);
              return;
           }
           // --- Self-Correction: Anonymous user + stale cookie ---

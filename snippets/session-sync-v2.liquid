@@ -22,7 +22,7 @@
       clientId: window.location.hostname === 'store.hoverair.com' ? 'shopify-hoverair' : 'shopify-fake-store',
       redirectUri: window.location.origin + '/pages/session-check',
       loginRedirectUri: window.location.origin + '/account/login', // Use standard Shopify login or specialized proxy
-      cooldownMs: 2 * 60 * 1000, // 2 minutes for Redirect Fallback
+      cooldownMs: 10 * 1000, // Reduced to 10s for Shared Domain (Iframe is reliable)
       iframeCooldownMs: 5 * 1000 // 5 seconds for Iframe Check (prevent spamming)
     };
 

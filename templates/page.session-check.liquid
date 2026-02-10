@@ -1,0 +1,53 @@
+{% layout none %}
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>Session Check</title>
+  </head>
+  <body>
+    <script>
+      (function () {
+        // 1. Parse Hash/Query for Result
+        // Keycloak returns: #state=...&code=... (Success) OR #error=login_required (Failure)
+        // Note: Keycloak OIDC can return parameters in Hash (Implicit/Hybrid) or Query (Authorization Code).
+        // We check both to be robust.
+
+        var hash = window.location.hash.substring(1);
+        var params = new URLSearchParams(hash);
+
+        // Fallback to query params if hash is empty or doesn't contain expected keys
+        if (!params.has('code') && !params.has('error') && !params.has('session_state')) {
+          var search = window.location.search.substring(1);
+          params = new URLSearchParams(search);
+        }
+
+        var message = { type: 'KEYCLOAK_SESSION_STATUS' };
+
+        if (params.has('error')) {
+          message.status = 'inactive';
+          message.error = params.get('error');
+        } else if (params.has('code')) {
+          message.status = 'active';
+          message.code = params.get('code');
+        } else if (params.has('session_state')) {
+          // Sometimes just session_state is returned if already logged in but no code flow requested?
+          // Usually code is present. Treat as active if we have positive signals.
+          // But strictly, we need 'code' to exchange for token if we were doing full login.
+          // For 'check-sso', presence of code means user IS logged in.
+          message.status = 'active';
+        } else {
+          message.status = 'unknown';
+        }
+
+        // 2. Post Message to Parent
+        // Only post if we are inside an iframe
+        if (window.parent && window.parent !== window) {
+          window.parent.postMessage(message, window.location.origin);
+        } else {
+          console.log('Session Check: Not in iframe', message);
+        }
+      })();
+    </script>
+  </body>
+</html>

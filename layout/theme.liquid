@@ -300,6 +300,7 @@
     {% render 'wsg-custom' %}
 
     {% render 'session-sync' %}
+    {% comment %} {% render 'session-sync-v2' %} {% endcomment %}
   </head>
 
   <body class="gradient{% if settings.animations_hover_elements != 'none' %} animate--hover-{{ settings.animations_hover_elements }}{% endif %}">

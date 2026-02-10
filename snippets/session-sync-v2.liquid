@@ -1,0 +1,150 @@
+{% comment %}
+  Session Sync V2 (Hybrid Strategy)
+  Intent: Synchronize Shopify session with Keycloak (SSO) silently when possible.
+
+  Strategy:
+  1. Primary: Silent Iframe Check (prompt=none).
+     - Works in Chrome/Edge/Firefox(sometimes).
+     - Fast, no reload.
+  2. Fallback: Top-Level Redirect (prompt=none).
+     - Triggered ONLY if Iframe returns 'login_required' AND Cooldown has expired.
+     - Required for Safari (ITP blocks 3rd-party cookies in iframe).
+
+  Dependencies:
+  - templates/page.session-check.liquid (Callback URI)
+  - Keycloak Client Config (Valid Redirect URI)
+{% endcomment %}
+
+<script>
+  (function() {
+    var CONFIG = {
+      keycloakUrl: "https://auth-test.zerozeroplatform.com/auth/realms/hover-test/protocol/openid-connect/auth",
+      clientId: window.location.hostname === 'store.hoverair.com' ? 'shopify-hoverair' : 'shopify-fake-store',
+      redirectUri: window.location.origin + '/pages/session-check',
+      loginRedirectUri: window.location.origin + '/account/login', // Use standard Shopify login or specialized proxy
+      cooldownMs: 2 * 60 * 1000, // 2 minutes for Redirect Fallback
+      iframeCooldownMs: 5 * 1000 // 5 seconds for Iframe Check (prevent spamming)
+    };
+
+    var STATE = {
+      isLoggedIn: {{ customer | json }} !== null, // Liquid injection
+      lastProbeAt: parseInt(sessionStorage.getItem('keycloak_v2_last_probe_at') || '0'),
+      lastIframeProbeAt: parseInt(sessionStorage.getItem('keycloak_v2_iframe_last_probe') || '0')
+    };
+
+    // --- Core Logic ---
+
+    function init() {
+      // If user is already logged in to Shopify, we generally don't need to probe
+      // UNLESS we want to support Single Logout (SLO).
+      // For V2 MVP, let's focus on auto-login for Anonymous users.
+      if (STATE.isLoggedIn) {
+        // Optional: Implement periodic check for SLO here
+        return;
+      }
+
+      // Trigger probe on load
+      checkSession();
+
+      // Trigger probe on tab focus
+      document.addEventListener('visibilitychange', function() {
+        if (!document.hidden) {
+          checkSession();
+        }
+      });
+
+      // Listen for Iframe Messages
+      window.addEventListener('message', handleIframeMessage);
+    }
+
+    function checkSession() {
+      var now = Date.now();
+
+      // 1. Check Iframe Cooldown (Prevent rapid-fire firing)
+      if (now - STATE.lastIframeProbeAt < CONFIG.iframeCooldownMs) {
+        return;
+      }
+
+      // 2. Refresh State
+      STATE.lastIframeProbeAt = now;
+      sessionStorage.setItem('keycloak_v2_iframe_last_probe', now);
+
+      console.log('[SessionSyncV2] Starting Silent Probe...');
+      createProbeIframe();
+    }
+
+    function createProbeIframe() {
+      var frameId = 'auth-probe-frame-v2';
+      var existing = document.getElementById(frameId);
+      if (existing) existing.remove();
+
+      var iframe = document.createElement('iframe');
+      iframe.id = frameId;
+      iframe.style.display = 'none';
+
+      var url = CONFIG.keycloakUrl +
+        '?client_id=' + encodeURIComponent(CONFIG.clientId) +
+        '&redirect_uri=' + encodeURIComponent(CONFIG.redirectUri) +
+        '&response_type=code' +
+        '&scope=openid' +
+        '&prompt=none' +
+        '&state=probe_v2';
+
+      iframe.src = url;
+      document.body.appendChild(iframe);
+    }
+
+    function handleIframeMessage(event) {
+      if (event.origin !== window.location.origin) return;
+      if (!event.data || event.data.type !== 'KEYCLOAK_SESSION_STATUS') return;
+
+      console.log('[SessionSyncV2] Iframe Result:', event.data);
+
+      if (event.data.status === 'active') {
+        // --- SCENARIO A: User IS logged in at Keycloak ---
+        console.log('[SessionSyncV2] User is active. Triggering Login...');
+        // Redirect to Login Flow (which will do the actual OIDC handshake)
+        // We can pass the 'code' directly if we have a handler, or just standard login
+        window.location.href = '/account/login?checkout_url=' + encodeURIComponent(window.location.pathname);
+
+      } else {
+        // --- SCENARIO B: User is Anonymous OR Cookie Blocked (Safari) ---
+        console.log('[SessionSyncV2] User appears anonymous.');
+
+        // HYBRID FALLBACK CHECK
+        // If we suspect 3rd party cookies are blocked, we might want to try ONE redirect.
+        // But we must rate-limit this severely (Cooldown).
+
+        var now = Date.now();
+        if (now - STATE.lastProbeAt > CONFIG.cooldownMs) {
+           console.log('[SessionSyncV2] Cooldown expired. Attempting Fallback Redirect for Safari compatibility...');
+           dispatchTopLevelProbe();
+        } else {
+           console.log('[SessionSyncV2] In Cooldown. Staying anonymous.');
+        }
+      }
+
+      // Cleanup
+      var frame = document.getElementById('auth-probe-frame-v2');
+      if (frame) frame.remove();
+    }
+
+    function dispatchTopLevelProbe() {
+       // Update timestamp BEFORE redirect to prevent loops
+       sessionStorage.setItem('keycloak_v2_last_probe_at', Date.now());
+
+       // Standard Redirect Check
+       var url = CONFIG.keycloakUrl +
+        '?client_id=' + encodeURIComponent(CONFIG.clientId) +
+        '&redirect_uri=' + encodeURIComponent(window.location.href) + // Return to SAME page
+        '&response_type=code' +
+        '&scope=openid' +
+        '&prompt=none';
+
+       window.location.href = url;
+    }
+
+    // Start
+    init();
+  })();
+</script>

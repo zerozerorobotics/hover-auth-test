@@ -90,3 +90,89 @@ By adding `id_token` to the request, we tell Keycloak:
 *   **Mechanism**: The `id_token` is a **JWT (JSON Web Token)**. containing the user's profile data (like `sub`, `email`, etc.).
 *   **Verification**: The Worker receives this token in the URL hash (`#id_token=...`). It does **not** need to call Keycloak to validate it. It can simply **decode** the Base64 string to read the `sub` (User ID).
 *   **Safety**: This token is signed by Keycloak. While a full backend validation would check the signature, for **analytics purposes** (where the user is checking their *own* session), simple decoding is sufficient and standard practice for client-side apps.
+    *   **Safety**: This token is signed by Keycloak. While a full backend validation would check the signature, for **analytics purposes** (where the user is checking their *own* session), simple decoding is sufficient and standard practice for client-side apps.
+
+## 7. Analysis: Dynamic Login State & Reporting Logic
+The user's login state is not static; it changes based on user interactions (Login, Logout, Session Expiry). We must handle these transitions carefully to ensure accurate data reporting.
+
+### A. When to Report (The "Active" State)
+We should **only** report the User ID to GA4 when:
+1.  The session check returns `status: 'active'`.
+2.  The `userId` field is present and valid.
+
+**Why?**
+*   This confirms the user is authenticated in Keycloak.
+*   Even if the user is *strictly* "Anonymous" in Shopify (e.g., just arrived, session sync pending), reporting the Keycloak User ID immediately allows GA4 to **stitch** the pre-login behavior (page view, initial clicks) to the authenticated user profile once the sync completes.
+
+### B. When NOT to Report (The "Inactive" State)
+If the session check returns `status: 'inactive'` or `status: 'error'`, we must **not** report the User ID.
+*   **Action**: Do nothing (or explicitly push `user_id: null` if using a Single Page Application framework that persists state).
+*   **Scenario**: User logs out. The page redirects to the logout confirmation. The new page loads. The session check returns `inactive`. GA4 initializes without a User ID. This correctly attributing subsequent events to an anonymous user.
+
+### C. The "Race Condition" (GA4 vs. Session Check)
+The session check is asynchronous (iframe loading + worker response).
+1.  **Page Load**: GA4 initializes (Anonymous).
+2.  **Delay (e.g., 500ms)**: Session Check runs.
+3.  **Session Active**: We set `user_id`.
+
+**Impact**:
+*   Events fired *during* the 500ms delay (e.g., `page_view`) might initially be anonymous.
+*   **Resolution**: GA4's "Session Stitching" feature is designed to handle this. When the `user_id` is set mid-session, GA4 retroactively associates the session's previous events with that user.
+*   **Recommendation**: We accept this slight delay as it avoids blocking the UI (unlike a synchronous backend check).
+
+### D. Subtlety: Updates during "Visibility Change"
+Our script re-checks session status on `visibilitychange` (tab focus).
+*   **Scenario**: User logs in on Tab A. Switches to Tab B.
+*   **Behavior**: Tab B detects `active`.
+*   **Action**: We report User ID again.
+*   **Safety**: `gtag config` / `set` is idempotent. Reporting the *same* User ID multiple times in a session is safe and reinforces the session state. It does not duplicate users.
+
+## 8. Industry Best Practice: "Late Identification"
+
+### The Question
+> "Since the user is initially 'Anonymous' (at page load) and only identified after a delay (e.g., 500ms), should we still report the User ID?"
+
+### The Answer: YES, Absolutely.
+This is the **standard pattern** for Single Page Applications (SPAs) and client-side authentication. Google Analytics 4 is specifically architected to handle this via a feature called **"Session Stitching"**.
+
+1.  **Phase 1 (Anonymous)**:
+    *   User lands on page. `page_view` event fires.
+    *   GA4 assigns a random `client_id` (cookie).
+    *   Event is logged as "Anonymous User".
+
+2.  **Phase 2 (Identification)**:
+    *   500ms later, our Session Check completes. We call `gtag('set', 'user_id', 'UUID')`.
+    *   **Magic**: GA4 now knows this session belongs to 'UUID'.
+    *   **Stitching**: GA4 retroactively associates the earlier `page_view` (from Phase 1) with this User ID in its processing pipeline.
+
+### Why this is Critical
+If you *don't* report the ID because it was "late", you lose the ability to track this user across devices.
+*   **Without ID**: A user on Phone and Desktop counts as **2 Users**.
+*   **With ID (even late)**: A user on Phone and Desktop counts as **1 User** with a unified journey.
+
+**Conclusion**: Always report the User ID as soon as it is available. The slight delay is handled automatically by the analytics platform.
+
+## 9. Handling Logout
+
+### The Question
+> "How should we tell GA4 that the user has logged out?"
+
+### Best Practice for Our Architecture (Redirect-based)
+**Do Nothing.**
+
+**Why?**
+1.  **State Reset**: Our logout flow involves a full page redirect to Keycloak (`/account/logout` -> Keycloak -> Post-Logout Page).
+2.  **Fresh Initialization**: When the user lands on the post-logout page, the browser re-initializes the GA4 library from scratch.
+3.  **No User ID**: Our `session-sync-v2.liquid` script runs, checks the session, finds it **inactive**, and *does not set* the User ID.
+4.  **Result**: GA4 naturally treats this new page view (and subsequent events) as belonging to an **Anonymous User** (same `client_id`, but no `user_id`).
+
+### Anti-Patterns to Avoid
+*   ❌ **Making an explicit call with `user_id: null` or `user_id: ''`**:
+    *   This is generally discouraged in GA4 property configuration unless you are building a strict Single Page Application (SPA) without refreshes.
+    *   Sending an empty string can sometimes result in a literal user ID of `""` or `"null"` in reports, polluting your data.
+*   ❌ **Sending a specific "Logged Out" event**:
+    *   GA4 automatically infers session ends based on inactivity or campaign changes. You *can* send a custom `logout` event if you want to track *the action of clicking logout*, but you don't need it for identity management.
+
+### Summary
+Since we rely on **redirects** for login/logout, the browser's natural lifecycle handles the state cleanup for us. We just need to ensure our code **does not** report a User ID when the session is inactive (which we covered in Section 7B).
+

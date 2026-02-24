@@ -68,6 +68,22 @@
     }
     // ------------------------------------
 
+    // --- V4.1 Helper: Session State Management ---
+    function getSessionState() {
+      return localStorage.getItem('keycloak_v4_session_state');
+    }
+
+    function setSessionState(stateStr) {
+      if (stateStr) {
+        localStorage.setItem('keycloak_v4_session_state', stateStr);
+      }
+    }
+
+    function clearSessionState() {
+      localStorage.removeItem('keycloak_v4_session_state');
+    }
+    // ---------------------------------------------
+
     // --- V4 Phase 1: Eager Check (The "V2" Part) ---
     // If we have the Hint Cookie, and we are NOT logged in to Shopify, redirect IMMEDIATELY.
     // Use Cooldown to prevent loops if redirect fails (e.g., login failed, cookie stale).
@@ -81,6 +97,7 @@
       console.log('[SessionSyncV4] Hint found. Eager redirect.');
 
       sessionStorage.setItem('keycloak_v4_eager_ts', now); // Prevent Loop
+      clearSessionState(); // V4.1 CRITICAL: Clear any stale state before we jump
 
       // V1 Style: Redirect to Keycloak aiming to return to Current Page
       // If session is active, Keycloak redirects back with ?code=...
@@ -166,16 +183,36 @@
 
         if (event.data.status === 'active') {
           setHintCookie(); // Refresh Hint
+
+          var incomingState = event.data.session_state;
+          var localState = getSessionState();
+
           if (!STATE.isLoggedIn) {
              console.log('[SessionSyncV4] Active! Redirecting to login...');
+             clearSessionState(); // V4.1 cleaner slate before Shopify native login establishing
              window.location.href = CONFIG.loginRedirectUri + '?return_to=' + encodeURIComponent(window.location.pathname);
+          } else {
+             // Logged-in + active → normal, do nothing usually, but check for account mismatch
+             if (!localState) {
+                // First read since being logged in. Baseline.
+                if (incomingState) {
+                    // console.log('[SessionSyncV4.1] Recording baseline session state.');
+                    setSessionState(incomingState);
+                }
+             } else if (incomingState && incomingState !== localState) {
+                // [BOOM] ACCOUNT SWITCH DETECTED!
+                console.warn('[SessionSyncV4.1] CRITICAL: Account mismatch detected across tabs. Forcing logout.');
+                clearHintCookie();
+                clearSessionState();
+                window.location.href = CONFIG.logoutUri + '?return_to=' + encodeURIComponent(window.location.pathname);
+             }
           }
-          // Logged-in + active → normal, do nothing
         } else {
           // --- Logout Sync: Logged-in user + Keycloak inactive ---
           if (STATE.isLoggedIn) {
              console.log('[SessionSyncV4] Keycloak inactive. Syncing logout.');
              clearHintCookie();
+             clearSessionState(); // V4.1 CRITICAL: wipe local tracking
              window.location.href = CONFIG.logoutUri + '?return_to=' + encodeURIComponent(window.location.pathname);
              return;
           }
@@ -183,6 +220,7 @@
           if (getHintCookie()) {
              console.warn('[SessionSyncV4] Stale Hint Cookie. Clearing.');
              clearHintCookie();
+             clearSessionState(); // V4.1 clear as a precaution
           }
         }
       }

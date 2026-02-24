@@ -201,9 +201,14 @@
                 }
              } else if (incomingState && incomingState !== localState) {
                 // [BOOM] ACCOUNT SWITCH DETECTED!
-                console.warn('[SessionSyncV4.1] CRITICAL: Account mismatch detected across tabs. Forcing logout.');
-                clearHintCookie();
+                console.warn('[SessionSyncV4.1] CRITICAL: Account mismatch detected across tabs. Forcing logout & resync.');
+                // 1. Maintain Hint Cookie because Keycloak IS still active (with a new account)
+                setHintCookie();
+                // 2. Clear old session state baseline
                 clearSessionState();
+                // 3. VITAL: Remove Eager Cooldown so Phase 1 runs INSTANTLY after we reload anonymously
+                sessionStorage.removeItem('keycloak_v4_eager_ts');
+
                 window.location.href = CONFIG.logoutUri + '?return_to=' + encodeURIComponent(window.location.pathname);
              }
           }

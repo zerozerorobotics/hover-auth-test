@@ -113,7 +113,7 @@
         '&response_type=code' +
         '&scope=openid' +
         '&prompt=none' + // CRITICAL: Silent Check
-        '&state=' + (Math.random().toString(36).substring(2) + Date.now().toString(36)); // Random state for CSRF protection
+        '&state=PROBE_' + (Math.random().toString(36).substring(2) + Date.now().toString(36)); // Random state for CSRF protection, PROBE for Keycloak SPI intercept
 
       window.location.href = probeUrl;
       return;

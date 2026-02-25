@@ -321,15 +321,15 @@
         UA: <span id="auth-login-ua" style="font-size:12px; word-break: break-all;"></span>
       </span>
       <script>
+        document.getElementById('auth-login-host').textContent = window.location.host;
+        const ua = window.navigator.userAgent;
+        document.getElementById('auth-login-ua').textContent = ua;
+        const appMatch = ua.match(/Hover\/([\d.]+)/i);
+        document.getElementById('auth-login-app-webview').textContent = appMatch ? `Yes (${appMatch[1]})` : 'No';
         document.addEventListener('DOMContentLoaded', function () {
           setTimeout(function () {
-            document.getElementById('auth-login-host').textContent = window.location.host;
             document.getElementById('auth-login-kc-logged-in').textContent =
               document.cookie.match(/KC_LOGGED_IN=([^;]+)/)?.[1] || 'N/A';
-            const ua = window.navigator.userAgent;
-            document.getElementById('auth-login-ua').textContent = ua;
-            const appMatch = ua.match(/Hover\/([\d.]+)/i);
-            document.getElementById('auth-login-app-webview').textContent = appMatch ? `Yes (${appMatch[1]})` : 'No';
           }, 1000); // Small delay to allow session-sync-v2 init() to run first
         });
       </script>

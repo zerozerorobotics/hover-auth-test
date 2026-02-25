@@ -144,7 +144,7 @@
     // -----------------------------------------------
 
     function init() {
-      debugger; // Phase 0: Init
+      {% comment %} debugger; // Phase 0: Init {% endcomment %}
       if (STATE.isLoggedIn) {
         // --- V4 Critical: Set Hint Cookie on Login ---
         setHintCookie();

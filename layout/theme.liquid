@@ -326,7 +326,7 @@
           document.cookie.match(/KC_LOGGED_IN=([^;]+)/)?.[1] || 'N/A';
         const ua = window.navigator.userAgent;
         document.getElementById('auth-login-ua').textContent = ua;
-        const appMatch = ua.match(/Hover X1\/([\d.]+)/i);
+        const appMatch = ua.match(/Hover\/([\d.]+)/i);
         document.getElementById('auth-login-app-webview').textContent = appMatch ? `Yes (${appMatch[1]})` : 'No';
       </script>
     </div>

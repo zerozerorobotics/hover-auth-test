@@ -46,7 +46,7 @@
       system: 'Unknown',
     };
 
-    const appMatch = ua.match(/Hover X1\/([\d.]+)/i);
+    const appMatch = ua.match(/Hover\/([\d.]+)/i);
     if (appMatch) {
       result.isApp = true;
       result.appVersion = appMatch[1];

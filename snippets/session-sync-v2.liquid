@@ -35,6 +35,29 @@
 
 <script>
   (function() {
+    // --- App WebView Check ---
+    const ua = window.navigator.userAgent;
+    const result = {
+      isApp: false,
+      appVersion: null,
+      os: 'Unknown',
+      browser: 'Unknown',
+      browserVersion: 'Unknown',
+      system: 'Unknown',
+    };
+
+    const appMatch = ua.match(/Hover X1\/([\d.]+)/i);
+    if (appMatch) {
+      result.isApp = true;
+      result.appVersion = appMatch[1];
+    }
+    // User-Agent for iOS App Webview typically contains 'Zerozerobot'
+    if (result.isApp) {
+      console.log('[SessionSyncV4] Skipped execution inside App WebView.');
+      return;
+    }
+    // -------------------------
+
     var CONFIG = {
       keycloakUrl: "https://auth-test.zerozeroplatform.com/realms/vcopter/protocol/openid-connect/auth",
       clientId: '{{ client_id }}',

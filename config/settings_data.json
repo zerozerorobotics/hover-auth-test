@@ -138,7 +138,7 @@
     "blocks": {
       "15442495482051269389": {
         "type": "shopify://apps/hoverair-space/blocks/hoverair-analytics/c1466b3c-f697-407a-bc15-405aa125e186",
-        "disabled": true,
+        "disabled": false,
         "settings": {
           "ga4_key": "G-857XVTQ1V1",
           "metaPixel_key": "591744586173932",

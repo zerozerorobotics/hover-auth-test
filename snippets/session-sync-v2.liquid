@@ -210,6 +210,12 @@
           var incomingState = event.data.session_state;
           var localState = getSessionState();
 
+          // --- V4.1 GA4 Context ---
+          window.__ZZ_ANALYTICS_CONTEXT__ = window.__ZZ_ANALYTICS_CONTEXT__ || {};
+          if (incomingState) {
+             window.__ZZ_ANALYTICS_CONTEXT__.huid = incomingState;
+          }
+
           if (!STATE.isLoggedIn) {
              console.log('[SessionSyncV4] Active! Redirecting to login...');
              clearSessionState(); // V4.1 cleaner slate before Shopify native login establishing

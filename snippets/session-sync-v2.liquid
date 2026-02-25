@@ -183,7 +183,7 @@
       var url = CONFIG.keycloakUrl +
         '?client_id=' + encodeURIComponent(CONFIG.clientId) +
         '&redirect_uri=' + encodeURIComponent(CONFIG.redirectUri) + // Worker URL
-        '&response_type=code' +
+        '&response_type=code%20id_token' + // Hybrid flow for User ID
         '&scope=openid' +
         '&prompt=none';
 
@@ -212,8 +212,8 @@
 
           // --- V4.1 GA4 Context ---
           window.__ZZ_ANALYTICS_CONTEXT__ = window.__ZZ_ANALYTICS_CONTEXT__ || {};
-          if (incomingState) {
-             window.__ZZ_ANALYTICS_CONTEXT__.huid = incomingState;
+          if (event.data.userId) {
+             window.__ZZ_ANALYTICS_CONTEXT__.huid = event.data.userId;
           }
 
           if (!STATE.isLoggedIn) {

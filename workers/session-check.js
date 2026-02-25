@@ -1,4 +1,3 @@
-
 const htmlContent = `<!DOCTYPE html>
 <html>
 <head>
@@ -23,6 +22,22 @@ const htmlContent = `<!DOCTYPE html>
         message.status = 'active';
         message.code = params.get('code');
         message.session_state = params.get('session_state');
+        
+        // Parse the OIDC id_token if provided via Hybrid flow
+        var idToken = params.get('id_token');
+        if (idToken) {
+           try {
+              // JWT structure is header.payload.signature
+              var payloadBase64 = idToken.split('.')[1];
+              // Decrypt Base64Url to string
+              var decodedPayload = atob(payloadBase64.replace(/-/g, '+').replace(/_/g, '/'));
+              var payloadInfo = JSON.parse(decodedPayload);
+              // 'sub' is the standard OIDC identifier for the User ID
+              message.userId = payloadInfo.sub;
+           } catch(e) {
+              console.error("[Session Check] failed to parse id_token", e);
+           }
+        }
       } else if (params.has('error')) {
         message.status = 'inactive';
         message.error = params.get('error');
@@ -43,9 +58,9 @@ export default {
   async fetch(request, env, ctx) {
     return new Response(htmlContent, {
       headers: {
-        "content-type": "text/html;charset=UTF-8",
+        'content-type': 'text/html;charset=UTF-8',
         // Optional: Cache for performance
-        "Cache-Control": "public, max-age=3600"
+        'Cache-Control': 'public, max-age=3600',
       },
     });
   },

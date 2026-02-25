@@ -330,7 +330,7 @@
             document.getElementById('auth-login-ua').textContent = ua;
             const appMatch = ua.match(/Hover\/([\d.]+)/i);
             document.getElementById('auth-login-app-webview').textContent = appMatch ? `Yes (${appMatch[1]})` : 'No';
-          }, 50); // Small delay to allow session-sync-v2 init() to run first
+          }, 1000); // Small delay to allow session-sync-v2 init() to run first
         });
       </script>
     </div>

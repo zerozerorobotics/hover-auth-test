@@ -74,19 +74,31 @@
     };
 
     // --- V4 Helper: Cookie Management ---
+    function getRootDomain() {
+      var hostname = window.location.hostname;
+      // Handle localhost or IP addresses
+      if (hostname === 'localhost' || hostname.match(/^[0-9.]+$/)) return hostname;
+      // Prevent setting cookies on myshopify.com (Public Suffix)
+      if (hostname.indexOf('.myshopify.com') !== -1) return hostname;
+
+      var parts = hostname.split('.');
+      // Extract the last two parts to form the root domain (e.g., .hoverair.com)
+      return '.' + parts.slice(-2).join('.');
+    }
+
     function getHintCookie() {
       var match = document.cookie.match(new RegExp('(^| )KC_LOGGED_IN=([^;]+)'));
       return match ? match[2] : null;
     }
 
     function setHintCookie() {
-      var domain = '.zerozeroplatform.com';
+      var domain = getRootDomain();
       var maxAge = 30 * 24 * 60 * 60; // 30 days
       document.cookie = "KC_LOGGED_IN=1; path=/; domain=" + domain + "; max-age=" + maxAge + "; samesite=lax; secure";
     }
 
     function clearHintCookie() {
-      var domain = '.zerozeroplatform.com';
+      var domain = getRootDomain();
       document.cookie = "KC_LOGGED_IN=; path=/; domain=" + domain + "; max-age=0; expires=Thu, 01 Jan 1970 00:00:00 GMT";
     }
     // ------------------------------------

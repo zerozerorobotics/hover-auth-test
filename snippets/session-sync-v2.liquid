@@ -128,7 +128,7 @@
     var EAGER_COOLDOWN = 60 * 1000; // 1 minute safety
 
     if (!STATE.isLoggedIn && getHintCookie() === '1' && (now - lastEagerProbe > EAGER_COOLDOWN)) {
-      debugger;
+      {% comment %} debugger; {% endcomment %}
       console.log('[SessionSyncV4] Hint found. Eager redirect.');
 
       sessionStorage.setItem('keycloak_v4_eager_ts', now); // Prevent Loop

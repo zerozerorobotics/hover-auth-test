@@ -4,7 +4,7 @@
 
   Strategy:
   Phase 0: Set Hint Cookie on Login.
-     - When user logs in on Site A, set KC_LOGGED_IN=1 on .zerozeroplatform.com.
+     - When user logs in on Site A, set KC_LOGGED_IN=1 on the root domain (e.g., .hoverair.com).
      - This signals to Site B that a Keycloak session exists.
 
   Phase 1: Eager Redirect (Top-Level, Immediate).
@@ -23,7 +23,7 @@
   Dependencies:
   - Cloudflare Worker at static.zerozeroplatform.com/session-check (Iframe redirect_uri)
   - Keycloak Client Config (Valid Redirect URIs, SPI Provider for state=PROBE)
-  - KC_LOGGED_IN cookie on .zerozeroplatform.com (Shared Hint)
+  - KC_LOGGED_IN cookie on the root domain (Shared Hint)
 {% endcomment %}
 
 {% comment %} Client ID & Keycloak URL Map {% endcomment %}

@@ -27,7 +27,7 @@
 {% endcomment %}
 
 {% comment %} Client ID Map {% endcomment %}
-{% if shop.domain == 'central-test.zerozeroplatform.com' %}
+{% if shop.domain == 'central-test.hoverair.com' %}
   {% assign client_id = 'shopify-fake-store-central' %}
 {% else %}
   {% assign client_id = 'shopify-fake-store' %}
@@ -59,9 +59,9 @@
     // -------------------------
 
     var CONFIG = {
-      keycloakUrl: "https://auth-test.zerozeroplatform.com/realms/vcopter/protocol/openid-connect/auth",
+      keycloakUrl: "https://auth-test.hoverair.com/realms/vcopter/protocol/openid-connect/auth",
       clientId: '{{ client_id }}',
-      redirectUri: 'https://static.zerozeroplatform.com/session-check',
+      redirectUri: 'https://static.hoverair.com/session-check',
       loginRedirectUri: '/customer_authentication/login',
       logoutUri: '/account/logout',
       // V4: Cooldown is less critical because we rely on Hint Cookie, but still good for safety

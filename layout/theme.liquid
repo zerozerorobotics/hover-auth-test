@@ -15,7 +15,8 @@
       <link rel="preconnect" href="https://fonts.shopifycdn.com" crossorigin>
     {%- endunless -%}
 
-    {% render 'gsi' %}
+    {% comment %} {% render 'gsi' %} {% endcomment %}
+    {% render 'auth-session-sync' %}
 
     <title>
       {{ page_title }}
@@ -301,8 +302,10 @@
     </script>
     {% render 'wsg-custom' %}
 
-    {% comment %} {% render 'session-sync' %} {% endcomment %}
-    {% render 'session-sync-v2' %}
+    {% comment %}
+      {% render 'session-sync' %}
+      {% render 'session-sync-v2' %}
+    {% endcomment %}
   </head>
 
   <body class="gradient{% if settings.animations_hover_elements != 'none' %} animate--hover-{{ settings.animations_hover_elements }}{% endif %}">

@@ -1,0 +1,84 @@
+{% unless customer %}
+  {% assign google_one_tap_client_id = '564967606393-0vfnmlbt2n7ue3pbcsfl74k1t3tegdvh.apps.googleusercontent.com' %}
+  {% assign google_one_tap_keycloak_base = 'https://auth-test.hoverair.com/' %}
+  {% assign google_one_tap_realm = 'vcopter' %}
+  {% assign google_one_tap_target = 'us-test' %}
+
+  {% assign google_one_tap_return_to = request.path %}
+  {% if request.query_string != blank %}
+    {% assign google_one_tap_return_to = request.path | append: '?' | append: request.query_string %}
+  {% endif %}
+
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+
+  <script>
+    window.addEventListener('load', function () {
+      if (!window.google || !google.accounts || !google.accounts.id) {
+        return;
+      }
+
+      const clientId = {{ google_one_tap_client_id | json }};
+      const keycloakBase = {{ google_one_tap_keycloak_base | json }};
+      const realm = {{ google_one_tap_realm | json }};
+      const target = {{ google_one_tap_target | json }};
+      const returnTo = {{ google_one_tap_return_to | json }};
+
+      const apiBase = `${keycloakBase}/realms/${encodeURIComponent(realm)}/google-one-tap`;
+
+      async function handleCredentialResponse(response) {
+        if (!response || !response.credential) {
+          return;
+        }
+
+        const initUrl = new URL(`${apiBase}/init`);
+        initUrl.searchParams.set('target', target);
+        initUrl.searchParams.set('return_to', returnTo);
+
+        const initResponse = await fetch(initUrl.toString(), {
+          method: 'GET',
+          credentials: 'include'
+        });
+
+        if (!initResponse.ok) {
+          return;
+        }
+
+        const initData = await initResponse.json();
+
+        const loginResponse = await fetch(`${apiBase}/login`, {
+          method: 'POST',
+          credentials: 'include',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            credential: response.credential,
+            target: target,
+            returnTo: returnTo,
+            state: initData.state,
+            mode: 'json'
+          })
+        });
+
+        if (!loginResponse.ok) {
+          return;
+        }
+
+        const loginData = await loginResponse.json();
+
+        if (loginData.launchUrl) {
+          window.location.assign(loginData.launchUrl);
+        }
+      }
+
+      google.accounts.id.initialize({
+        client_id: clientId,
+        callback: handleCredentialResponse,
+        auto_select: false,
+        cancel_on_tap_outside: true
+      });
+
+      google.accounts.id.prompt();
+    });
+  </script>
+{% endunless %}

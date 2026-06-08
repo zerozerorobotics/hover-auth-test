@@ -40,10 +40,7 @@
   (function () {
     "use strict";
 
-    if (window.__customerAuthOrchestratorV2Loaded) {
-      return;
-    }
-    window.__customerAuthOrchestratorV2Loaded = true;
+    var runtime = window.__authSessionSync = window.__authSessionSync || {};
 
     var CONFIG = {
       authBaseUrl: {{ auth_base_url | json }},
@@ -62,6 +59,7 @@
       gsiCooldownMs: 10 * 60 * 1000,
       iframeTimeoutMs: 10000
     };
+    runtime.config = CONFIG;
 
     var KEY = {
       flow: "zz_auth_flow_state",
@@ -366,6 +364,9 @@
       if (!shouldRunIframeCheck()) {
         return false;
       }
+      if (!document.body) {
+        return false;
+      }
 
       var last = parseInt(sessionStorage.getItem(KEY.legacyIframeAt) || "0", 10);
       if (last && now() - last < CONFIG.iframeCooldownMs) {
@@ -625,17 +626,55 @@
       return true;
     }
 
-    function registerMonitoring() {
-      window.addEventListener("message", handleIframeMessage);
-      document.addEventListener("visibilitychange", function () {
-        if (!document.hidden) {
-          runIframeSessionCheck();
+    function scheduleReconcile(reason) {
+      runtime.pendingReason = reason || "unknown";
+      if (runtime.reconcileScheduled) {
+        return;
+      }
+      runtime.reconcileScheduled = true;
+      setTimeout(function () {
+        runtime.reconcileScheduled = false;
+        if (runtime.reconcileAuthState) {
+          runtime.reconcileAuthState(runtime.pendingReason);
         }
-      });
-      runIframeSessionCheck();
+      }, 0);
     }
 
-    function start() {
+    function registerGlobalListenersOnce() {
+      if (runtime.listenersRegistered) {
+        return;
+      }
+      runtime.listenersRegistered = true;
+
+      window.addEventListener("message", function (event) {
+        var currentRuntime = window.__authSessionSync;
+        if (currentRuntime && currentRuntime.handleIframeMessage) {
+          currentRuntime.handleIframeMessage(event);
+        }
+      });
+
+      document.addEventListener("visibilitychange", function () {
+        if (!document.hidden && window.__authSessionSync && window.__authSessionSync.scheduleReconcile) {
+          window.__authSessionSync.scheduleReconcile("visibilitychange");
+        }
+      });
+
+      window.addEventListener("focus", function () {
+        if (window.__authSessionSync && window.__authSessionSync.scheduleReconcile) {
+          window.__authSessionSync.scheduleReconcile("focus");
+        }
+      });
+
+      window.addEventListener("pageshow", function () {
+        if (window.__authSessionSync && window.__authSessionSync.scheduleReconcile) {
+          window.__authSessionSync.scheduleReconcile("pageshow");
+        }
+      });
+    }
+
+    function reconcileAuthState(reason) {
+      debug("reconcile", reason || "unknown");
+
       if (isAppWebView()) {
         debug("skip in app webview");
         return;
@@ -670,11 +709,9 @@
       if (CONFIG.isShopifyCustomer) {
         setHintCookie();
         setFlow(FLOW.SHOPIFY_MONITORING);
-        registerMonitoring();
+        runIframeSessionCheck();
         return;
       }
-
-      window.addEventListener("message", handleIframeMessage);
 
       if (hasHintCookie()) {
         if (shouldRunEagerProbe() && runEagerProbe()) {
@@ -687,10 +724,22 @@
       maybeRunGsi();
     }
 
+    runtime.handleIframeMessage = handleIframeMessage;
+    runtime.reconcileAuthState = reconcileAuthState;
+    runtime.scheduleReconcile = scheduleReconcile;
+    registerGlobalListenersOnce();
+
     if (document.readyState === "loading") {
-      document.addEventListener("DOMContentLoaded", start);
+      if (!runtime.domReadyReconcileRegistered) {
+        runtime.domReadyReconcileRegistered = true;
+        document.addEventListener("DOMContentLoaded", function () {
+          if (window.__authSessionSync && window.__authSessionSync.scheduleReconcile) {
+            window.__authSessionSync.scheduleReconcile("dom_ready");
+          }
+        });
+      }
     } else {
-      start();
+      scheduleReconcile("snippet_exec");
     }
   })();
 </script>

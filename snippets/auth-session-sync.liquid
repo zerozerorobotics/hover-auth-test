@@ -201,6 +201,22 @@
       return location.pathname + location.search;
     }
 
+    function currentRelativeUrlWithoutOidcParams() {
+      var url = new URL(location.href);
+      [
+        "code",
+        "state",
+        "session_state",
+        "iss",
+        "error",
+        "error_description",
+        "error_uri"
+      ].forEach(function (name) {
+        url.searchParams.delete(name);
+      });
+      return safeRelativeTarget(url.pathname + url.search);
+    }
+
     function safeRelativeTarget(value) {
       if (!value || value.charAt(0) !== "/" || value.indexOf("//") === 0) {
         return "/";
@@ -246,6 +262,29 @@
         return true;
       }
       return false;
+    }
+
+    function isReturnedSuccessfulEagerProbe() {
+      var params = new URLSearchParams(location.search);
+      var state = params.get("state") || "";
+      return !!params.get("code") && state.indexOf("PROBE_") === 0;
+    }
+
+    function consumeReturnedSuccessfulEagerProbe() {
+      if (!isReturnedSuccessfulEagerProbe()) {
+        return false;
+      }
+      debug("successful eager probe returned; handing off to Shopify login");
+      setHintCookie();
+      sessionStorage.setItem(KEY.hintProbeStatus, "done_with_session");
+      clearSessionState();
+
+      if (!canSessionNavigate()) {
+        return true;
+      }
+
+      navigate(shopifyLoginUrl(), FLOW.SESSION_SYNC_HANDOFF, true);
+      return true;
     }
 
     function isNavigationLocked() {
@@ -401,7 +440,7 @@
     }
 
     function shopifyLoginUrl() {
-      return CONFIG.shopifyLoginUri + "?return_to=" + encodeURIComponent(currentRelativeUrl());
+      return CONFIG.shopifyLoginUri + "?return_to=" + encodeURIComponent(currentRelativeUrlWithoutOidcParams());
     }
 
     function shopifyLogoutUrl() {
@@ -704,6 +743,9 @@
       }
 
       noteSuccessfulSessionReturn();
+      if (consumeReturnedSuccessfulEagerProbe()) {
+        return;
+      }
       consumeReturnedFailedEagerProbe();
 
       if (CONFIG.isShopifyCustomer) {

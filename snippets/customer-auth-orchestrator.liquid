@@ -1,0 +1,468 @@
+{%- comment -%}
+  Customer Auth Orchestrator
+  - Keycloak session-sync first
+  - Google One Tap fallback
+  - No dependency on existing session-sync-v2 / gsi scripts
+{%- endcomment -%}
+
+{%- assign auth_base_url = 'https://auth-test.hoverair.com' -%}
+{%- assign auth_realm = 'vcopter' -%}
+{%- assign auth_oidc_client_id = 'shopify-storefront' -%}
+{%- assign google_client_id = '123.apps.googleusercontent.com' -%}
+{%- assign google_one_tap_target = 'us-test' -%}
+{%- assign session_sync_path = '/pages/session-sync' -%}
+
+{%- assign return_to = request.path -%}
+{%- if request.query_string != blank -%}
+  {%- assign return_to = request.path | append: '?' | append: request.query_string -%}
+{%- endif -%}
+
+<script>
+(function () {
+  "use strict";
+
+  if (window.__customerAuthOrchestratorLoaded) {
+    return;
+  }
+  window.__customerAuthOrchestratorLoaded = true;
+
+  var config = {
+    authBaseUrl: {{ auth_base_url | json }},
+    realm: {{ auth_realm | json }},
+    oidcClientId: {{ auth_oidc_client_id | json }},
+    googleClientId: {{ google_client_id | json }},
+    googleTarget: {{ google_one_tap_target | json }},
+    returnTo: {{ return_to | json }},
+    sessionSyncPath: {{ session_sync_path | json }},
+    isShopifyCustomer: {{ customer | json }} ? true : false,
+    probeCooldownMs: 2 * 60 * 1000,
+    gsiCooldownMs: 10 * 60 * 1000
+  };
+
+  var keys = {
+    flow: "zz_auth_flow_state",
+    probeStatus: "zz_auth_probe_status",
+    probeStartedAt: "zz_auth_probe_started_at",
+    lastProbeAt: "zz_auth_last_probe_at",
+    lastGsiPromptAt: "zz_auth_last_gsi_prompt_at",
+    explicitLogout: "zz_auth_explicit_logout",
+    sid: "zz_session_id"
+  };
+
+  var Flow = {
+    IDLE: "idle",
+    KC_PROBE_RUNNING: "kc_probe_running",
+    KC_PROBE_DONE_NO_SESSION: "kc_probe_done_no_session",
+    GSI_RUNNING: "gsi_running",
+    HANDOFF_RUNNING: "shopify_handoff_running",
+    DONE: "done"
+  };
+
+  function log() {
+    if (window.localStorage && localStorage.getItem("zz_auth_debug") === "true") {
+      console.log.apply(console, ["[CustomerAuth]"].concat([].slice.call(arguments)));
+    }
+  }
+
+  function now() {
+    return Date.now();
+  }
+
+  function setFlow(value) {
+    sessionStorage.setItem(keys.flow, value);
+  }
+
+  function getFlow() {
+    return sessionStorage.getItem(keys.flow) || Flow.IDLE;
+  }
+
+  function clearFlow() {
+    sessionStorage.removeItem(keys.flow);
+  }
+
+  function isLogoutPage() {
+    return (
+      location.pathname.indexOf("/account/logout") !== -1 ||
+      location.pathname.indexOf("/customer_authentication/logout") !== -1
+    );
+  }
+
+  function isShopifyAuthPage() {
+    return location.pathname.indexOf("/customer_authentication/login") !== -1;
+  }
+
+  function isSessionSyncPage() {
+    return location.pathname.indexOf(config.sessionSyncPath) !== -1;
+  }
+
+  function markExplicitLogout() {
+    localStorage.removeItem(keys.sid);
+    sessionStorage.setItem(keys.explicitLogout, "true");
+    clearFlow();
+  }
+
+  function hasExplicitLogout() {
+    return sessionStorage.getItem(keys.explicitLogout) === "true";
+  }
+
+  function saveSid(sid) {
+    if (!sid) return;
+    localStorage.setItem(keys.sid, sid);
+    log("saved sid");
+  }
+
+  function extractSidFromUrl() {
+    var sid = null;
+
+    if (location.hash && location.hash.indexOf("sid=") !== -1) {
+      sid = new URLSearchParams(location.hash.replace(/^#/, "")).get("sid");
+    }
+
+    if (!sid) {
+      sid = new URLSearchParams(location.search).get("sid");
+    }
+
+    if (sid) {
+      saveSid(sid);
+    }
+
+    return sid;
+  }
+
+  function cleanSidFromUrl() {
+    var url = new URL(location.href);
+    var changed = false;
+
+    if (url.searchParams.has("sid")) {
+      url.searchParams.delete("sid");
+      changed = true;
+    }
+
+    if (url.hash && url.hash.indexOf("sid=") !== -1) {
+      url.hash = "";
+      changed = true;
+    }
+
+    if (changed) {
+      history.replaceState(null, "", url.pathname + url.search + url.hash);
+    }
+  }
+
+  function handleSessionSyncBouncePage() {
+    if (!isSessionSyncPage()) {
+      return false;
+    }
+
+    extractSidFromUrl();
+
+    var target = new URLSearchParams(location.search).get("target");
+    if (target && target.charAt(0) === "/") {
+      location.replace(target);
+    } else {
+      location.replace("/");
+    }
+
+    return true;
+  }
+
+  function hasReturnedFromProbeWithoutSession() {
+    var probeStatus = sessionStorage.getItem(keys.probeStatus);
+    if (probeStatus !== "running") {
+      return false;
+    }
+
+    if (extractSidFromUrl()) {
+      sessionStorage.setItem(keys.probeStatus, "done_with_session");
+      setFlow(Flow.DONE);
+      cleanSidFromUrl();
+      return false;
+    }
+
+    var params = new URLSearchParams(location.search);
+    if (params.has("error") || params.has("error_description")) {
+      return true;
+    }
+
+    return true;
+  }
+
+  function markProbeNoSession() {
+    sessionStorage.setItem(keys.probeStatus, "done_no_session");
+    setFlow(Flow.KC_PROBE_DONE_NO_SESSION);
+  }
+
+  function shouldRunProbe() {
+    if (hasExplicitLogout()) return false;
+    if (config.isShopifyCustomer) return false;
+    if (isLogoutPage() || isShopifyAuthPage() || isSessionSyncPage()) return false;
+
+    var status = sessionStorage.getItem(keys.probeStatus);
+    if (status === "done_no_session" || status === "done_with_session") {
+      return false;
+    }
+
+    var lastProbeAt = parseInt(sessionStorage.getItem(keys.lastProbeAt) || "0", 10);
+    if (lastProbeAt && now() - lastProbeAt < config.probeCooldownMs) {
+      return false;
+    }
+
+    return true;
+  }
+
+  function buildProbeUrl() {
+    var redirectUri = location.href;
+
+    return (
+      config.authBaseUrl +
+      "/realms/" +
+      encodeURIComponent(config.realm) +
+      "/protocol/openid-connect/auth" +
+      "?client_id=" +
+      encodeURIComponent(config.oidcClientId) +
+      "&redirect_uri=" +
+      encodeURIComponent(redirectUri) +
+      "&response_type=code" +
+      "&scope=openid" +
+      "&prompt=none" +
+      "&state=PROBE"
+    );
+  }
+
+  function runKeycloakProbe() {
+    sessionStorage.setItem(keys.probeStatus, "running");
+    sessionStorage.setItem(keys.probeStartedAt, String(now()));
+    sessionStorage.setItem(keys.lastProbeAt, String(now()));
+    setFlow(Flow.KC_PROBE_RUNNING);
+
+    location.href = buildProbeUrl();
+  }
+
+  function checkKeycloakSessionStatus() {
+    var sid = localStorage.getItem(keys.sid);
+    if (!sid) return;
+
+    var url =
+      config.authBaseUrl +
+      "/realms/" +
+      encodeURIComponent(config.realm) +
+      "/hoverair/session-status?token=" +
+      encodeURIComponent(sid);
+
+    fetch(url, {
+      method: "GET",
+      credentials: "omit"
+    })
+      .then(function (response) {
+        return response.json();
+      })
+      .then(function (data) {
+        if (data && data.active === false) {
+          localStorage.removeItem(keys.sid);
+          location.href = "/account/logout";
+        }
+      })
+      .catch(function () {
+        // Do not logout on network failure.
+      });
+  }
+
+  function shouldRunGsi() {
+    if (hasExplicitLogout()) return false;
+    if (config.isShopifyCustomer) return false;
+    if (isLogoutPage() || isShopifyAuthPage() || isSessionSyncPage()) return false;
+
+    var flow = getFlow();
+    if (flow === Flow.KC_PROBE_RUNNING || flow === Flow.GSI_RUNNING || flow === Flow.HANDOFF_RUNNING) {
+      return false;
+    }
+
+    var probeStatus = sessionStorage.getItem(keys.probeStatus);
+    if (probeStatus !== "done_no_session") {
+      return false;
+    }
+
+    var lastPromptAt = parseInt(sessionStorage.getItem(keys.lastGsiPromptAt) || "0", 10);
+    if (lastPromptAt && now() - lastPromptAt < config.gsiCooldownMs) {
+      return false;
+    }
+
+    return true;
+  }
+
+  function loadGoogleIdentityScript(callback) {
+    if (window.google && google.accounts && google.accounts.id) {
+      callback();
+      return;
+    }
+
+    var existing = document.querySelector("script[data-google-gsi]");
+    if (existing) {
+      existing.addEventListener("load", callback);
+      return;
+    }
+
+    var script = document.createElement("script");
+    script.src = "https://accounts.google.com/gsi/client";
+    script.async = true;
+    script.defer = true;
+    script.setAttribute("data-google-gsi", "true");
+    script.onload = callback;
+    document.head.appendChild(script);
+  }
+
+  function googleOneTapApiBase() {
+    return (
+      config.authBaseUrl +
+      "/realms/" +
+      encodeURIComponent(config.realm) +
+      "/google-one-tap"
+    );
+  }
+
+  async function handleGoogleCredential(response) {
+    if (!response || !response.credential) {
+      clearFlow();
+      return;
+    }
+
+    setFlow(Flow.GSI_RUNNING);
+
+    try {
+      var apiBase = googleOneTapApiBase();
+
+      var initUrl = new URL(apiBase + "/init");
+      initUrl.searchParams.set("target", config.googleTarget);
+      initUrl.searchParams.set("return_to", config.returnTo);
+
+      var initResponse = await fetch(initUrl.toString(), {
+        method: "GET",
+        credentials: "include"
+      });
+
+      if (!initResponse.ok) {
+        clearFlow();
+        return;
+      }
+
+      var initData = await initResponse.json();
+
+      var loginResponse = await fetch(apiBase + "/login", {
+        method: "POST",
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          credential: response.credential,
+          target: config.googleTarget,
+          returnTo: config.returnTo,
+          state: initData.state,
+          mode: "json"
+        })
+      });
+
+      if (!loginResponse.ok) {
+        clearFlow();
+        return;
+      }
+
+      var loginData = await loginResponse.json();
+
+      if (loginData && loginData.launchUrl) {
+        setFlow(Flow.HANDOFF_RUNNING);
+        location.assign(loginData.launchUrl);
+        return;
+      }
+
+      clearFlow();
+    } catch (e) {
+      clearFlow();
+    }
+  }
+
+  function runGsi() {
+    sessionStorage.setItem(keys.lastGsiPromptAt, String(now()));
+    setFlow(Flow.GSI_RUNNING);
+
+    loadGoogleIdentityScript(function () {
+      if (!window.google || !google.accounts || !google.accounts.id) {
+        clearFlow();
+        return;
+      }
+
+      google.accounts.id.initialize({
+        client_id: config.googleClientId,
+        callback: handleGoogleCredential,
+        auto_select: false,
+        cancel_on_tap_outside: true
+      });
+
+      google.accounts.id.prompt(function (notification) {
+        if (!notification) return;
+
+        if (
+          notification.isNotDisplayed && notification.isNotDisplayed() ||
+          notification.isSkippedMoment && notification.isSkippedMoment() ||
+          notification.isDismissedMoment && notification.isDismissedMoment()
+        ) {
+          if (getFlow() === Flow.GSI_RUNNING) {
+            clearFlow();
+          }
+        }
+      });
+    });
+  }
+
+  function registerActiveSessionChecks() {
+    document.addEventListener("visibilitychange", function () {
+      if (!document.hidden) {
+        checkKeycloakSessionStatus();
+      }
+    });
+
+    checkKeycloakSessionStatus();
+  }
+
+  function start() {
+    if (isLogoutPage()) {
+      markExplicitLogout();
+      return;
+    }
+
+    if (hasExplicitLogout()) {
+      return;
+    }
+
+    if (handleSessionSyncBouncePage()) {
+      return;
+    }
+
+    extractSidFromUrl();
+    cleanSidFromUrl();
+
+    if (config.isShopifyCustomer) {
+      registerActiveSessionChecks();
+      return;
+    }
+
+    if (hasReturnedFromProbeWithoutSession()) {
+      markProbeNoSession();
+    }
+
+    if (shouldRunProbe()) {
+      runKeycloakProbe();
+      return;
+    }
+
+    if (shouldRunGsi()) {
+      runGsi();
+    }
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", start);
+  } else {
+    start();
+  }
+})();
+</script>

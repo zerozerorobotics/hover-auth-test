@@ -41,257 +41,227 @@
   {% assign keycloak_url = 'https://auth.hoverair.com/realms/hoverair/protocol/openid-connect/auth' %}
 {% endif %}
 
-<script>
-  (function() {
-    // if client_id is empty, return
-    if (!'{{ client_id }}') {
-      console.log('[SessionSyncV4] Client ID is empty. Skipping execution.');
-      return;
-    }
-
-    // --- App WebView Check ---
-    const ua = window.navigator.userAgent;
-    const result = {
-      isApp: false,
-      appVersion: null,
-      os: 'Unknown',
-      browser: 'Unknown',
-      browserVersion: 'Unknown',
-      system: 'Unknown',
-    };
-
-    const appMatch = ua.match(/Hover\/([\d.]+)/i);
-    if (appMatch) {
-      result.isApp = true;
-      result.appVersion = appMatch[1];
-    }
-    // User-Agent for iOS App Webview typically contains 'Zerozerobot'
-    if (result.isApp) {
-      console.log('[SessionSyncV4] Skipped execution inside App WebView.');
-      return;
-    }
-    // -------------------------
-
-    var CONFIG = {
-      keycloakUrl: '{{ keycloak_url }}',
-      clientId: '{{ client_id }}',
-      redirectUri: 'https://static.zerozeroplatform.com/session-check',
-      loginRedirectUri: '/customer_authentication/login',
-      logoutUri: '/account/logout',
-      // V4: Cooldown is less critical because we rely on Hint Cookie, but still good for safety
-      iframeCooldownMs: 5 * 1000
-    };
-
-    var STATE = {
-      isLoggedIn: {{ customer | json }} !== null,
-      lastIframeProbeAt: parseInt(sessionStorage.getItem('keycloak_v4_iframe_last_probe') || '0')
-    };
-
-    // --- V4 Helper: Cookie Management ---
-    function getRootDomain() {
-      var hostname = window.location.hostname;
-      // Handle localhost or IP addresses
-      if (hostname === 'localhost' || hostname.match(/^[0-9.]+$/)) return hostname;
-      // Prevent setting cookies on myshopify.com (Public Suffix)
-      if (hostname.indexOf('.myshopify.com') !== -1) return hostname;
-
-      var parts = hostname.split('.');
-      // Extract the last two parts to form the root domain (e.g., .hoverair.com)
-      return '.' + parts.slice(-2).join('.');
-    }
-
-    function getHintCookie() {
-      var match = document.cookie.match(new RegExp('(^| )KC_LOGGED_IN=([^;]+)'));
-      return match ? match[2] : null;
-    }
-
-    function setHintCookie() {
-      var domain = getRootDomain();
-      var maxAge = 30 * 24 * 60 * 60; // 30 days
-      document.cookie = "KC_LOGGED_IN=1; path=/; domain=" + domain + "; max-age=" + maxAge + "; samesite=lax; secure";
-    }
-
-    function clearHintCookie() {
-      var domain = getRootDomain();
-      document.cookie = "KC_LOGGED_IN=; path=/; domain=" + domain + "; max-age=0; expires=Thu, 01 Jan 1970 00:00:00 GMT";
-    }
-    // ------------------------------------
-
-    // --- V4.1 Helper: Session State Management ---
-    function getSessionState() {
-      return localStorage.getItem('keycloak_v4_session_state');
-    }
-
-    function setSessionState(stateStr) {
-      if (stateStr) {
-        localStorage.setItem('keycloak_v4_session_state', stateStr);
+{% if session_sync_phase == 'eager' %}
+  <script>
+    (function() {
+      if (!'{{ client_id }}') {
+        return;
       }
-    }
 
-    function clearSessionState() {
-      localStorage.removeItem('keycloak_v4_session_state');
-    }
-    // ---------------------------------------------
+      var ua = window.navigator.userAgent;
+      var appMatch = ua.match(/Hover(?: X1)?\/([\d.]+)/i);
+      if (appMatch) {
+        return;
+      }
 
-    // --- V4 Phase 1: Eager Check (The "V2" Part) ---
-    // If we have the Hint Cookie, and we are NOT logged in to Shopify, redirect IMMEDIATELY.
-    // Use Cooldown to prevent loops if redirect fails (e.g., login failed, cookie stale).
+      var isLoggedIn = {{ customer | json }} !== null;
+      if (isLoggedIn) {
+        return;
+      }
 
-    var lastEagerProbe = parseInt(sessionStorage.getItem('keycloak_v4_eager_ts') || '0');
-    var now = Date.now();
-    var EAGER_COOLDOWN = 60 * 1000; // 1 minute safety
+      function getHintCookie() {
+        var match = document.cookie.match(new RegExp('(^| )KC_LOGGED_IN=([^;]+)'));
+        return match ? match[2] : null;
+      }
 
-    if (!STATE.isLoggedIn && getHintCookie() === '1' && (now - lastEagerProbe > EAGER_COOLDOWN)) {
-      {% comment %} debugger; {% endcomment %}
+      var lastEagerProbe = parseInt(sessionStorage.getItem('keycloak_v4_eager_ts') || '0', 10);
+      var now = Date.now();
+      var eagerCooldown = 60 * 1000;
+
+      if (getHintCookie() !== '1' || (now - lastEagerProbe <= eagerCooldown)) {
+        return;
+      }
+
       console.log('[SessionSyncV4] Hint found. Eager redirect.');
 
-      sessionStorage.setItem('keycloak_v4_eager_ts', now); // Prevent Loop
-      clearSessionState(); // V4.1 CRITICAL: Clear any stale state before we jump
+      sessionStorage.setItem('keycloak_v4_eager_ts', now);
+      localStorage.removeItem('keycloak_v4_session_state');
 
-      // V1 Style: Redirect to Keycloak aiming to return to Current Page
-      // If session is active, Keycloak redirects back with ?code=...
-      // If session inactive, Keycloak redirects back with ?error=login_required
-      // In both cases, we handle it:
-      // - Success: Shopify App handles code exchange (Standard OIDC)
-      // - Failure: We stay anonymous, then Phase 2 (Iframe) will clean up the Stale Hint Cookie.
-
-      var callbackUrl = window.location.href; // V1 style
-      var probeUrl = CONFIG.keycloakUrl +
-        '?client_id=' + encodeURIComponent(CONFIG.clientId) +
+      var callbackUrl = window.location.href;
+      var probeUrl = '{{ keycloak_url }}' +
+        '?client_id=' + encodeURIComponent('{{ client_id }}') +
         '&redirect_uri=' + encodeURIComponent(callbackUrl) +
         '&response_type=code' +
         '&scope=openid' +
-        '&prompt=none' + // CRITICAL: Silent Check
-        '&state=PROBE_' + (Math.random().toString(36).substring(2) + Date.now().toString(36)); // Random state for CSRF protection, PROBE for Keycloak SPI intercept
+        '&prompt=none' +
+        '&state=PROBE_' + (Math.random().toString(36).substring(2) + Date.now().toString(36));
 
       window.location.href = probeUrl;
-      return;
-    }
-    // -----------------------------------------------
-
-    function init() {
-      {% comment %} debugger; // Phase 0: Init {% endcomment %}
-      if (STATE.isLoggedIn) {
-        // --- V4 Critical: Set Hint Cookie on Login ---
-        setHintCookie();
+    })();
+  </script>
+{% else %}
+  <script>
+    (function() {
+      if (!'{{ client_id }}') {
+        console.log('[SessionSyncV4] Client ID is empty. Skipping execution.');
+        return;
       }
 
-      // --- V4 Phase 2: Unified Iframe Check (Login + Logout Sync) ---
-      // For anonymous users: detect active Keycloak session → auto login
-      // For logged-in users: detect inactive Keycloak session → auto logout
-      checkSession();
-      document.addEventListener('visibilitychange', function() {
-        if (!document.hidden) checkSession();
-      });
-      window.addEventListener('message', handleIframeMessage);
-    }
-
-    function checkSession() {
-      var now = Date.now();
-      if (now - STATE.lastIframeProbeAt < CONFIG.iframeCooldownMs) return;
-      STATE.lastIframeProbeAt = now;
-      sessionStorage.setItem('keycloak_v4_iframe_last_probe', now);
-
-      console.log('[SessionSyncV4] Dispatching Iframe Probe...');
-      createProbeIframe();
-    }
-
-    function createProbeIframe() {
-      // V3 Strategy: Use Worker/CDN to bypass X-Frame-Options
-      var frameId = 'auth-probe-frame-v4';
-      var existing = document.getElementById(frameId);
-      if (existing) existing.remove();
-
-      var iframe = document.createElement('iframe');
-      iframe.id = frameId;
-      iframe.style.display = 'none';
-
-      var url = CONFIG.keycloakUrl +
-        '?client_id=' + encodeURIComponent(CONFIG.clientId) +
-        '&redirect_uri=' + encodeURIComponent(CONFIG.redirectUri) + // Worker URL
-        '&response_type=code%20id_token' + // Hybrid flow for User ID
-        '&scope=openid' +
-        '&nonce=' + Math.random().toString(36).substring(2) + Date.now().toString(36) + // Required for OIDC Hybrid flow
-        '&prompt=none';
-
-      iframe.src = url;
-      document.body.appendChild(iframe);
-
-      setTimeout(function() {
-        var el = document.getElementById(frameId);
-        if (el) el.remove();
-      }, 10000);
-    }
-
-    function handleIframeMessage(event) {
-      if (event.origin !== new URL(CONFIG.redirectUri).origin) {
-         // return; // Strict check recommended
+      var ua = window.navigator.userAgent;
+      var appMatch = ua.match(/Hover(?: X1)?\/([\d.]+)/i);
+      if (appMatch) {
+        console.log('[SessionSyncV4] Skipped execution inside App WebView.');
+        return;
       }
 
-      if (event.data && event.data.type === 'KEYCLOAK_SESSION_STATUS') {
-        console.log('[SessionSyncV4] Iframe Result:', event.data);
+      var CONFIG = {
+        keycloakUrl: '{{ keycloak_url }}',
+        clientId: '{{ client_id }}',
+        redirectUri: 'https://static.zerozeroplatform.com/session-check',
+        loginRedirectUri: '/customer_authentication/login',
+        logoutUri: '/account/logout',
+        iframeCooldownMs: 5 * 1000
+      };
 
-        if (event.data.status === 'active') {
-          setHintCookie(); // Refresh Hint
+      var STATE = {
+        isLoggedIn: {{ customer | json }} !== null,
+        lastIframeProbeAt: parseInt(sessionStorage.getItem('keycloak_v4_iframe_last_probe') || '0', 10)
+      };
 
-          var incomingState = event.data.session_state;
-          var localState = getSessionState();
+      function getRootDomain() {
+        var hostname = window.location.hostname;
+        if (hostname === 'localhost' || hostname.match(/^[0-9.]+$/)) return hostname;
+        if (hostname.indexOf('.myshopify.com') !== -1) return hostname;
 
-          // --- V4.1 GA4 Context ---
-          window.__ZZ_ANALYTICS_CONTEXT__ = window.__ZZ_ANALYTICS_CONTEXT__ || {};
-          if (event.data.userId) {
-             window.__ZZ_ANALYTICS_CONTEXT__.huid = event.data.userId;
-          }
+        var parts = hostname.split('.');
+        return '.' + parts.slice(-2).join('.');
+      }
 
-          if (!STATE.isLoggedIn) {
-             console.log('[SessionSyncV4] Active! Redirecting to login...');
-             clearSessionState(); // V4.1 cleaner slate before Shopify native login establishing
-             window.location.href = CONFIG.loginRedirectUri + '?return_to=' + encodeURIComponent(window.location.pathname);
+      function getHintCookie() {
+        var match = document.cookie.match(new RegExp('(^| )KC_LOGGED_IN=([^;]+)'));
+        return match ? match[2] : null;
+      }
+
+      function setHintCookie() {
+        var domain = getRootDomain();
+        var maxAge = 30 * 24 * 60 * 60;
+        document.cookie = 'KC_LOGGED_IN=1; path=/; domain=' + domain + '; max-age=' + maxAge + '; samesite=lax; secure';
+      }
+
+      function clearHintCookie() {
+        var domain = getRootDomain();
+        document.cookie = 'KC_LOGGED_IN=; path=/; domain=' + domain + '; max-age=0; expires=Thu, 01 Jan 1970 00:00:00 GMT';
+      }
+
+      function getSessionState() {
+        return localStorage.getItem('keycloak_v4_session_state');
+      }
+
+      function setSessionState(stateStr) {
+        if (stateStr) {
+          localStorage.setItem('keycloak_v4_session_state', stateStr);
+        }
+      }
+
+      function clearSessionState() {
+        localStorage.removeItem('keycloak_v4_session_state');
+      }
+
+      function init() {
+        if (STATE.isLoggedIn) {
+          setHintCookie();
+        }
+
+        checkSession();
+        document.addEventListener('visibilitychange', function() {
+          if (!document.hidden) checkSession();
+        });
+        window.addEventListener('message', handleIframeMessage);
+      }
+
+      function checkSession() {
+        var now = Date.now();
+        if (now - STATE.lastIframeProbeAt < CONFIG.iframeCooldownMs) return;
+        STATE.lastIframeProbeAt = now;
+        sessionStorage.setItem('keycloak_v4_iframe_last_probe', now);
+
+        console.log('[SessionSyncV4] Dispatching Iframe Probe...');
+        createProbeIframe();
+      }
+
+      function createProbeIframe() {
+        var frameId = 'auth-probe-frame-v4';
+        var existing = document.getElementById(frameId);
+        if (existing) existing.remove();
+
+        var iframe = document.createElement('iframe');
+        iframe.id = frameId;
+        iframe.style.display = 'none';
+
+        var url = CONFIG.keycloakUrl +
+          '?client_id=' + encodeURIComponent(CONFIG.clientId) +
+          '&redirect_uri=' + encodeURIComponent(CONFIG.redirectUri) +
+          '&response_type=code%20id_token' +
+          '&scope=openid' +
+          '&nonce=' + Math.random().toString(36).substring(2) + Date.now().toString(36) +
+          '&prompt=none';
+
+        iframe.src = url;
+        document.body.appendChild(iframe);
+
+        setTimeout(function() {
+          var el = document.getElementById(frameId);
+          if (el) el.remove();
+        }, 10000);
+      }
+
+      function handleIframeMessage(event) {
+        if (event.origin !== new URL(CONFIG.redirectUri).origin) {
+          // return; // Strict check recommended
+        }
+
+        if (event.data && event.data.type === 'KEYCLOAK_SESSION_STATUS') {
+          console.log('[SessionSyncV4] Iframe Result:', event.data);
+
+          if (event.data.status === 'active') {
+            setHintCookie();
+
+            var incomingState = event.data.session_state;
+            var localState = getSessionState();
+
+            window.__ZZ_ANALYTICS_CONTEXT__ = window.__ZZ_ANALYTICS_CONTEXT__ || {};
+            if (event.data.userId) {
+              window.__ZZ_ANALYTICS_CONTEXT__.huid = event.data.userId;
+            }
+
+            if (!STATE.isLoggedIn) {
+              console.log('[SessionSyncV4] Active! Redirecting to login...');
+              clearSessionState();
+              window.location.href = CONFIG.loginRedirectUri + '?return_to=' + encodeURIComponent(window.location.pathname);
+            } else if (!localState) {
+              if (incomingState) {
+                setSessionState(incomingState);
+              }
+            } else if (incomingState && incomingState !== localState) {
+              console.warn('[SessionSyncV4.1] CRITICAL: Account mismatch detected across tabs. Forcing logout & resync.');
+              setHintCookie();
+              clearSessionState();
+              sessionStorage.removeItem('keycloak_v4_eager_ts');
+              window.location.href = CONFIG.logoutUri + '?return_to=' + encodeURIComponent(window.location.pathname);
+            }
           } else {
-             // Logged-in + active → normal, do nothing usually, but check for account mismatch
-             if (!localState) {
-                // First read since being logged in. Baseline.
-                if (incomingState) {
-                    // console.log('[SessionSyncV4.1] Recording baseline session state.');
-                    setSessionState(incomingState);
-                }
-             } else if (incomingState && incomingState !== localState) {
-                // [BOOM] ACCOUNT SWITCH DETECTED!
-                console.warn('[SessionSyncV4.1] CRITICAL: Account mismatch detected across tabs. Forcing logout & resync.');
-                // 1. Maintain Hint Cookie because Keycloak IS still active (with a new account)
-                setHintCookie();
-                // 2. Clear old session state baseline
-                clearSessionState();
-                // 3. VITAL: Remove Eager Cooldown so Phase 1 runs INSTANTLY after we reload anonymously
-                sessionStorage.removeItem('keycloak_v4_eager_ts');
+            if (STATE.isLoggedIn) {
+              console.log('[SessionSyncV4] Keycloak inactive. Syncing logout.');
+              clearHintCookie();
+              clearSessionState();
+              window.location.href = CONFIG.logoutUri + '?return_to=' + encodeURIComponent(window.location.pathname);
+              return;
+            }
 
-                window.location.href = CONFIG.logoutUri + '?return_to=' + encodeURIComponent(window.location.pathname);
-             }
-          }
-        } else {
-          // --- Logout Sync: Logged-in user + Keycloak inactive ---
-          if (STATE.isLoggedIn) {
-             console.log('[SessionSyncV4] Keycloak inactive. Syncing logout.');
-             clearHintCookie();
-             clearSessionState(); // V4.1 CRITICAL: wipe local tracking
-             window.location.href = CONFIG.logoutUri + '?return_to=' + encodeURIComponent(window.location.pathname);
-             return;
-          }
-          // --- Self-Correction: Anonymous user + stale cookie ---
-          if (getHintCookie()) {
-             console.warn('[SessionSyncV4] Stale Hint Cookie. Clearing.');
-             clearHintCookie();
-             clearSessionState(); // V4.1 clear as a precaution
+            if (getHintCookie()) {
+              console.warn('[SessionSyncV4] Stale Hint Cookie. Clearing.');
+              clearHintCookie();
+              clearSessionState();
+            }
           }
         }
       }
-    }
 
-    // Start
-    if (document.readyState === 'loading') {
-      document.addEventListener('DOMContentLoaded', init);
-    } else {
-      init();
-    }
-  })();
-</script>
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', init);
+      } else {
+        init();
+      }
+    })();
+  </script>
+{% endif %}

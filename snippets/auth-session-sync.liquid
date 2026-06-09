@@ -69,14 +69,14 @@
   {%- assign google_one_tap_target = 'tw' -%}
 {% elsif shop.domain == 'au.hoverair.com' %}
   {%- assign auth_env = 'prod' -%}
-  {%- assign auth_base_url = 'https://au.hoverair.com' -%}
+  {%- assign auth_base_url = 'https://auth.hoverair.com' -%}
   {%- assign auth_realm = 'hoverair' -%}
   {%- assign auth_oidc_client_id = 'zerozerorobotics-hoverair-au' -%}
   {%- assign google_one_tap_client_id = '564967606393-4ojp506d4upchtgrob1sec4dabporcol.apps.googleusercontent.com' -%}
   {%- assign google_one_tap_target = 'au' -%}
 {% elsif shop.domain == 'kr.hoverair.com' %}
   {%- assign auth_env = 'prod' -%}
-  {%- assign auth_base_url = 'https://kr.hoverair.com' -%}
+  {%- assign auth_base_url = 'https://auth.hoverair.com' -%}
   {%- assign auth_realm = 'hoverair' -%}
   {%- assign auth_oidc_client_id = 'zerozerorobotics-hoverair-kr' -%}
   {%- assign google_one_tap_client_id = '564967606393-4ojp506d4upchtgrob1sec4dabporcol.apps.googleusercontent.com' -%}
@@ -111,12 +111,17 @@
       iframeCooldownMs: 5 * 1000,
       gsiCooldownMs: 10 * 60 * 1000,
       iframeTimeoutMs: 10000,
+      sessionProbeFlowTtlMs: 15 * 1000,
+      gsiPromptFlowTtlMs: 2 * 60 * 1000,
+      gsiApiFlowTtlMs: 30 * 1000,
+      handoffFlowTtlMs: 30 * 1000,
       infoLogDedupeMs: 0
     };
     runtime.config = CONFIG;
 
     var KEY = {
       flow: "zz_auth_flow_state",
+      flowAt: "zz_auth_flow_state_at",
       explicitLogout: "zz_auth_explicit_logout",
       hintProbeStatus: "zz_auth_hint_probe_status",
       lastGsiPromptAt: "zz_auth_last_gsi_prompt_at",
@@ -227,6 +232,7 @@
         reason: "auth state transition"
       });
       sessionStorage.setItem(KEY.flow, flow);
+      sessionStorage.setItem(KEY.flowAt, String(now()));
     }
 
     function getFlow() {
@@ -239,6 +245,50 @@
         reason: "auth state completed or reset"
       });
       sessionStorage.removeItem(KEY.flow);
+      sessionStorage.removeItem(KEY.flowAt);
+    }
+
+    function getFlowAgeMs() {
+      var flowAt = parseInt(sessionStorage.getItem(KEY.flowAt) || "0", 10);
+      return flowAt ? now() - flowAt : 0;
+    }
+
+    function flowTtlMs(flow) {
+      if (flow === FLOW.SESSION_CHECK_RUNNING) {
+        return CONFIG.sessionProbeFlowTtlMs;
+      }
+      if (flow === FLOW.GSI_PROMPTING) {
+        return CONFIG.gsiPromptFlowTtlMs;
+      }
+      if (flow === FLOW.GSI_API_LOGIN) {
+        return CONFIG.gsiApiFlowTtlMs;
+      }
+      if (flow === FLOW.SESSION_SYNC_HANDOFF || flow === FLOW.GSI_HANDOFF) {
+        return CONFIG.handoffFlowTtlMs;
+      }
+      return 0;
+    }
+
+    function expireStaleFlow() {
+      var flow = getFlow();
+      var ttl = flowTtlMs(flow);
+      if (!ttl) {
+        return false;
+      }
+
+      var age = getFlowAgeMs();
+      if (!age || age <= ttl) {
+        return false;
+      }
+
+      infoDecision("flow:expired", {
+        reason: "auth flow lock exceeded TTL and will be cleared",
+        flow: flow,
+        ageMs: age,
+        ttlMs: ttl
+      });
+      clearFlow();
+      return true;
     }
 
     function isAppWebView() {
@@ -1062,6 +1112,8 @@
     }
 
     function reconcileAuthState(reason) {
+      expireStaleFlow();
+
       debugDecision("reconcile:start", authDebugSnapshot({
         reason: "evaluate current Shopify, Keycloak hint, page, and flow state",
         trigger: reason || "unknown"

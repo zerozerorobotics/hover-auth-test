@@ -970,6 +970,13 @@
       });
 
       window.addEventListener("message", function (event) {
+        infoDecision("listener:event", {
+          event: "message",
+          reason: "window message listener fired before auth message filtering",
+          origin: event.origin,
+          hasData: !!event.data,
+          dataType: event.data && event.data.type ? event.data.type : null
+        });
         var currentRuntime = window.__authSessionSync;
         if (currentRuntime && currentRuntime.handleIframeMessage) {
           currentRuntime.handleIframeMessage(event);
@@ -977,18 +984,31 @@
       });
 
       document.addEventListener("visibilitychange", function () {
+        infoDecision("listener:event", {
+          event: "visibilitychange",
+          reason: "document visibilitychange listener fired before auth reconciliation",
+          hidden: document.hidden
+        });
         if (!document.hidden && window.__authSessionSync && window.__authSessionSync.scheduleReconcile) {
           window.__authSessionSync.scheduleReconcile("visibilitychange");
         }
       });
 
       window.addEventListener("focus", function () {
+        infoDecision("listener:event", {
+          event: "focus",
+          reason: "window focus listener fired before auth reconciliation"
+        });
         if (window.__authSessionSync && window.__authSessionSync.scheduleReconcile) {
           window.__authSessionSync.scheduleReconcile("focus");
         }
       });
 
       window.addEventListener("pageshow", function () {
+        infoDecision("listener:event", {
+          event: "pageshow",
+          reason: "window pageshow listener fired before auth reconciliation"
+        });
         if (window.__authSessionSync && window.__authSessionSync.scheduleReconcile) {
           window.__authSessionSync.scheduleReconcile("pageshow");
         }
@@ -1098,6 +1118,10 @@
       if (!runtime.domReadyReconcileRegistered) {
         runtime.domReadyReconcileRegistered = true;
         document.addEventListener("DOMContentLoaded", function () {
+          infoDecision("listener:event", {
+            event: "DOMContentLoaded",
+            reason: "document DOMContentLoaded listener fired before auth reconciliation"
+          });
           if (window.__authSessionSync && window.__authSessionSync.scheduleReconcile) {
             window.__authSessionSync.scheduleReconcile("dom_ready");
           }

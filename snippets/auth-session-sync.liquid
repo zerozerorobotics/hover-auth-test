@@ -10,14 +10,17 @@
 {%- assign auth_oidc_client_id = '' -%}
 {%- assign google_one_tap_client_id = '' -%}
 {%- assign google_one_tap_target = '' -%}
+{%- assign auth_env = 'prod' -%}
 
 {%- if shop.domain == 'central-test.hoverair.com' -%}
+  {%- assign auth_env = 'test' -%}
   {%- assign auth_base_url = 'https://auth-test.hoverair.com' -%}
   {%- assign auth_realm = 'vcopter' -%}
   {%- assign auth_oidc_client_id = 'shopify-fake-store-central' -%}
   {%- assign google_one_tap_client_id = '564967606393-0vfnmlbt2n7ue3pbcsfl74k1t3tegdvh.apps.googleusercontent.com' -%}
   {%- assign google_one_tap_target = 'central-test' -%}
 {%- elsif shop.domain == 'us-test.hoverair.com' -%}
+  {%- assign auth_env = 'test' -%}
   {%- assign auth_base_url = 'https://auth-test.hoverair.com' -%}
   {%- assign auth_realm = 'vcopter' -%}
   {%- assign auth_oidc_client_id = 'shopify-fake-store' -%}
@@ -45,6 +48,7 @@
     var runtime = window.__authSessionSync = window.__authSessionSync || {};
 
     var CONFIG = {
+      env: {{ auth_env | json }},
       authBaseUrl: {{ auth_base_url | json }},
       realm: {{ auth_realm | json }},
       oidcClientId: {{ auth_oidc_client_id | json }},
@@ -85,14 +89,52 @@
       DONE: "done"
     };
 
-    function debug() {
+    function getDefaultLogLevel() {
+      if (CONFIG.env === "test" || CONFIG.env === "staging") {
+        return "info";
+      }
+      return "silent";
+    }
+
+    function getAuthLogLevel() {
       try {
-        if (window.localStorage && localStorage.getItem("zz_auth_debug") === "true") {
-          console.log.apply(console, ["[CustomerAuthV2]"].concat([].slice.call(arguments)));
+        var override = localStorage.getItem("zz_auth_log_level");
+        if (override === "silent" || override === "info" || override === "debug") {
+          return override;
+        }
+        if (localStorage.getItem("zz_auth_debug") === "true") {
+          return "debug";
         }
       } catch (e) {
-        // Ignore storage/logging failures.
+        // Ignore storage failures.
       }
+      return getDefaultLogLevel();
+    }
+
+    function shouldLog(level) {
+      var activeLevel = getAuthLogLevel();
+      if (activeLevel === "silent") {
+        return false;
+      }
+      return activeLevel === "debug" || level === "info";
+    }
+
+    function authLog(level, step, details) {
+      if (!shouldLog(level)) {
+        return;
+      }
+      if (level === "info") {
+        runtime.infoLogLast = runtime.infoLogLast || {};
+        var dedupeKey = step + ":" + ((details && details.reason) || "");
+        var loggedAt = runtime.infoLogLast[dedupeKey] || 0;
+        var current = Date.now();
+        if (current - loggedAt < 5000) {
+          return;
+        }
+        runtime.infoLogLast[dedupeKey] = current;
+      }
+      var writer = level === "info" && console.info ? console.info : console.log;
+      writer.call(console, "[CustomerAuthV2]", step, details || {});
     }
 
     function authDebugSnapshot(extra) {
@@ -120,7 +162,11 @@
     }
 
     function debugDecision(step, details) {
-      debug(step, details || {});
+      authLog("debug", step, details || {});
+    }
+
+    function infoDecision(step, details) {
+      authLog("info", step, details || {});
     }
 
     function now() {
@@ -225,7 +271,7 @@
     }
 
     function markExplicitLogout() {
-      debugDecision("logout:explicit", {
+      infoDecision("logout:explicit", {
         reason: "current path is a logout page; suppress automatic login in this tab"
       });
       setFlow(FLOW.EXPLICIT_LOGOUT);
@@ -296,7 +342,7 @@
     function noteSuccessfulSessionReturn() {
       var sid = extractSidFromUrl();
       if (sid) {
-        debugDecision("session:return:sid", {
+        infoDecision("session:return:sid", {
           reason: "session-sync returned a signed sid; store session hint and clean URL"
         });
         localStorage.setItem("zz_session_id", sid);
@@ -319,7 +365,7 @@
       if (!isReturnedSuccessfulEagerProbe()) {
         return false;
       }
-      debugDecision("probe:success:return", {
+      infoDecision("probe:success:return", {
         reason: "Keycloak prompt=none returned code with PROBE state; Shopify session still needs login handoff",
         returnTo: currentRelativeUrlWithoutOidcParams()
       });
@@ -328,7 +374,7 @@
       clearSessionState();
 
       if (!canSessionNavigate()) {
-        debugDecision("probe:success:handoff_blocked", {
+        infoDecision("probe:success:handoff_blocked", {
           reason: "navigation lock or GSI flow is active",
           flow: getFlow()
         });
@@ -360,7 +406,7 @@
 
     function navigate(url, nextFlow, replace) {
       setFlow(nextFlow);
-      debugDecision("navigate", {
+      infoDecision("navigate", {
         reason: "auth flow requires browser navigation",
         nextFlow: nextFlow,
         replace: !!replace,
@@ -377,7 +423,7 @@
       if (!isSessionSyncPage()) {
         return false;
       }
-      debugDecision("session_sync:bounce", {
+      infoDecision("session_sync:bounce", {
         reason: "session-sync bounce page detected; consume sid and return to safe target"
       });
       noteSuccessfulSessionReturn();
@@ -393,7 +439,7 @@
       if (noteSuccessfulSessionReturn()) {
         return false;
       }
-      debugDecision("probe:failed:return", {
+      infoDecision("probe:failed:return", {
         reason: "eager probe returned without sid/code success; treat hint as stale"
       });
       sessionStorage.setItem(KEY.hintProbeStatus, "done_no_session");
@@ -436,7 +482,7 @@
         });
         return false;
       }
-      debugDecision("probe:eager:start", {
+      infoDecision("probe:eager:start", {
         reason: "anonymous user has KC_LOGGED_IN hint; verify Keycloak session with top-level prompt=none",
         realm: CONFIG.realm,
         clientId: CONFIG.oidcClientId,
@@ -539,7 +585,7 @@
     }
 
     function handleActiveSession(data) {
-      debugDecision("session:active", {
+      infoDecision("session:active", {
         reason: CONFIG.isShopifyCustomer
           ? "Keycloak session is active while Shopify user is logged in"
           : "Keycloak session is active for anonymous Shopify user; Shopify login handoff required",
@@ -584,7 +630,7 @@
           });
           return;
         }
-        debugDecision("session:state:mismatch", {
+        infoDecision("session:state:mismatch", {
           reason: "Keycloak session_state changed; logout Shopify session and resync"
         });
         clearSessionState();
@@ -594,7 +640,7 @@
     }
 
     function handleInactiveSession() {
-      debugDecision("session:inactive", {
+      infoDecision("session:inactive", {
         reason: CONFIG.isShopifyCustomer
           ? "Keycloak session is inactive while Shopify user is logged in"
           : "Keycloak session is inactive for anonymous user; stale hint should be cleared",
@@ -615,7 +661,7 @@
       }
 
       if (hasHintCookie()) {
-        debugDecision("hint:clear", {
+        infoDecision("hint:clear", {
           reason: "Keycloak iframe returned inactive; KC_LOGGED_IN hint is stale"
         });
         clearHintCookie();
@@ -744,7 +790,7 @@
         return;
       }
 
-      debugDecision("gsi:api_login:start", {
+      infoDecision("gsi:api_login:start", {
         reason: "Google credential received; exchange through Keycloak One Tap API",
         target: CONFIG.googleTarget,
         returnTo: CONFIG.returnTo
@@ -790,7 +836,7 @@
         })
         .then(function (loginData) {
           if (loginData && loginData.launchUrl && canGsiNavigate()) {
-            debugDecision("gsi:handoff", {
+            infoDecision("gsi:handoff", {
               reason: "Keycloak One Tap API returned launch URL; navigate to complete Keycloak and Shopify sessions"
             });
             setFlow(FLOW.GSI_HANDOFF);
@@ -800,7 +846,7 @@
           clearGsiFlow();
         })
         .catch(function (error) {
-          debugDecision("gsi:api_login:failed", {
+          infoDecision("gsi:api_login:failed", {
             reason: "Keycloak One Tap API login failed",
             error: error && error.message ? error.message : String(error)
           });
@@ -815,14 +861,14 @@
 
       sessionStorage.setItem(KEY.lastGsiPromptAt, String(now()));
       setFlow(FLOW.GSI_PROMPTING);
-      debugDecision("gsi:prompt:start", {
+      infoDecision("gsi:prompt:start", {
         reason: "no reusable Keycloak session was hinted/found; start Google One Tap fallback",
         target: CONFIG.googleTarget
       });
 
       loadGoogleIdentityScript(function () {
         if (!window.google || !google.accounts || !google.accounts.id) {
-          debugDecision("gsi:script:unavailable", {
+          infoDecision("gsi:script:unavailable", {
             reason: "Google Identity Services script did not expose google.accounts.id"
           });
           clearGsiFlow();
@@ -844,7 +890,7 @@
           var dismissed = notification.isDismissedMoment && notification.isDismissedMoment();
 
           if (notDisplayed || skipped || dismissed) {
-            debugDecision("gsi:prompt:closed", {
+            infoDecision("gsi:prompt:closed", {
               reason: "Google One Tap prompt was not displayed, skipped, or dismissed",
               notDisplayed: !!notDisplayed,
               skipped: !!skipped,
@@ -930,12 +976,12 @@
       }
 
       if (!hasRequiredKeycloakConfig()) {
-        debugDecision("reconcile:skip", { reason: "missing required Keycloak config" });
+        infoDecision("reconcile:skip", { reason: "missing required Keycloak config" });
         return;
       }
 
       if (isLogoutPage()) {
-        debugDecision("reconcile:logout_page", {
+        infoDecision("reconcile:logout_page", {
           reason: "logout page owns this navigation; clear auth hints"
         });
         markExplicitLogout();
@@ -967,7 +1013,7 @@
       consumeReturnedFailedEagerProbe();
 
       if (CONFIG.isShopifyCustomer) {
-        debugDecision("reconcile:branch", {
+        infoDecision("reconcile:branch", {
           reason: "Shopify customer is logged in; monitor Keycloak session and account switch"
         });
         setHintCookie();
@@ -977,7 +1023,7 @@
       }
 
       if (hasHintCookie()) {
-        debugDecision("reconcile:branch", {
+        infoDecision("reconcile:branch", {
           reason: "anonymous Shopify user has KC_LOGGED_IN hint; session-sync has priority over GSI"
         });
         if (shouldRunEagerProbe() && runEagerProbe()) {
@@ -987,7 +1033,7 @@
         return;
       }
 
-      debugDecision("reconcile:branch", {
+      infoDecision("reconcile:branch", {
         reason: "anonymous Shopify user has no Keycloak hint; evaluate Google One Tap fallback"
       });
       maybeRunGsi();

@@ -134,8 +134,7 @@
         }
         runtime.infoLogLast[dedupeKey] = current;
       }
-      var writer = level === "info" && console.info ? console.info : console.log;
-      writer.call(console, "[CustomerAuthV2]", step, details || {});
+      console.log("[CustomerAuthV2]", step, details || {});
     }
 
     function authDebugSnapshot(extra) {
@@ -965,7 +964,7 @@
         return;
       }
       runtime.listenersRegistered = true;
-      debugDecision("listeners:register", {
+      infoDecision("listeners:register", {
         reason: "register global auth lifecycle listeners once"
       });
 

@@ -627,16 +627,13 @@
     }
 
     function handleIframeMessage(event) {
-      if (event.origin !== new URL(CONFIG.sessionCheckRedirectUri).origin) {
-        debugDecision("iframe:message:ignored", {
-          reason: "message origin does not match session check origin",
-          origin: event.origin
-        });
+      if (!event.data || event.data.type !== "KEYCLOAK_SESSION_STATUS") {
         return;
       }
-      if (!event.data || event.data.type !== "KEYCLOAK_SESSION_STATUS") {
+      if (event.origin !== new URL(CONFIG.sessionCheckRedirectUri).origin) {
         debugDecision("iframe:message:ignored", {
-          reason: "message is not a Keycloak session status payload"
+          reason: "Keycloak session status payload origin does not match session check origin",
+          origin: event.origin
         });
         return;
       }

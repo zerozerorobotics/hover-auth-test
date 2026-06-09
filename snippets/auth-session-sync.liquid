@@ -26,14 +26,48 @@
   {%- assign auth_oidc_client_id = 'shopify-fake-store' -%}
   {%- assign google_one_tap_client_id = '564967606393-0vfnmlbt2n7ue3pbcsfl74k1t3tegdvh.apps.googleusercontent.com' -%}
   {%- assign google_one_tap_target = 'us-test' -%}
-{%- elsif shop.domain == 'uk.hoverair.com' -%}
+{% elsif shop.domain == 'hoverair.com' %}
+  {%- assign auth_env = 'prod' -%}
   {%- assign auth_base_url = 'https://auth.hoverair.com' -%}
-  {%- assign auth_realm = 'hoverair' -%}
+  {%- assign auth_oidc_client_id = 'zerozerorobotics-hoverair-central' -%}
+  {%- assign google_one_tap_client_id = '564967606393-4ojp506d4upchtgrob1sec4dabporcol.apps.googleusercontent.com' -%}
+  {%- assign google_one_tap_target = 'central' -%}
+{% elsif shop.domain == 'us.hoverair.com' %}
+  {%- assign auth_env = 'prod' -%}
+  {%- assign auth_base_url = 'https://auth.hoverair.com' -%}
+  {%- assign auth_oidc_client_id = 'zerozerorobotics-hoverair-us' -%}
+  {%- assign google_one_tap_client_id = '564967606393-4ojp506d4upchtgrob1sec4dabporcol.apps.googleusercontent.com' -%}
+  {%- assign google_one_tap_target = 'us' -%}
+{% elsif shop.domain == 'eu.hoverair.com' %}
+  {%- assign auth_env = 'prod' -%}
+  {%- assign auth_base_url = 'https://auth.hoverair.com' -%}
+  {%- assign auth_oidc_client_id = 'zerozerorobotics-hoverair-eu' -%}
+  {%- assign google_one_tap_client_id = '564967606393-4ojp506d4upchtgrob1sec4dabporcol.apps.googleusercontent.com' -%}
+  {%- assign google_one_tap_target = 'eu' -%}
+{% elsif shop.domain == 'uk.hoverair.com' %}
+  {%- assign auth_env = 'prod' -%}
+  {%- assign auth_base_url = 'https://auth.hoverair.com' -%}
   {%- assign auth_oidc_client_id = 'zerozerorobotics-hoverair-uk' -%}
-{%- elsif shop.domain == 'global.hoverair.com' -%}
+  {%- assign google_one_tap_client_id = '564967606393-4ojp506d4upchtgrob1sec4dabporcol.apps.googleusercontent.com' -%}
+  {%- assign google_one_tap_target = 'uk' -%}
+{% elsif shop.domain == 'global.hoverair.com' %}
+  {%- assign auth_env = 'prod' -%}
   {%- assign auth_base_url = 'https://auth.hoverair.com' -%}
-  {%- assign auth_realm = 'hoverair' -%}
   {%- assign auth_oidc_client_id = 'zerozerorobotics-hoverair-global' -%}
+  {%- assign google_one_tap_client_id = '564967606393-4ojp506d4upchtgrob1sec4dabporcol.apps.googleusercontent.com' -%}
+  {%- assign google_one_tap_target = 'global' -%}
+{% elsif shop.domain == 'tw.hoverair.com' %}
+  {%- assign auth_env = 'prod' -%}
+  {%- assign auth_base_url = 'https://tw.hoverair.com' -%}
+  {%- assign auth_oidc_client_id = 'zerozerorobotics-hoverair-tw' -%}
+  {%- assign google_one_tap_client_id = '564967606393-4ojp506d4upchtgrob1sec4dabporcol.apps.googleusercontent.com' -%}
+  {%- assign google_one_tap_target = 'tw' -%}
+{% elsif shop.domain == 'au.hoverair.com' %}
+  {%- assign auth_env = 'prod' -%}
+  {%- assign auth_base_url = 'https://au.hoverair.com' -%}
+  {%- assign auth_oidc_client_id = 'zerozerorobotics-hoverair-au' -%}
+  {%- assign google_one_tap_client_id = '564967606393-4ojp506d4upchtgrob1sec4dabporcol.apps.googleusercontent.com' -%}
+  {%- assign google_one_tap_target = 'au' -%}
 {%- endif -%}
 
 {%- assign auth_return_to = request.path -%}

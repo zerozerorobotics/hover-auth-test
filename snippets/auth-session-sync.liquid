@@ -63,7 +63,8 @@
       eagerCooldownMs: 60 * 1000,
       iframeCooldownMs: 5 * 1000,
       gsiCooldownMs: 10 * 60 * 1000,
-      iframeTimeoutMs: 10000
+      iframeTimeoutMs: 10000,
+      infoLogDedupeMs: 0
     };
     runtime.config = CONFIG;
 
@@ -123,12 +124,12 @@
       if (!shouldLog(level)) {
         return;
       }
-      if (level === "info") {
+      if (level === "info" && step !== "pageview:session_check_decision" && CONFIG.infoLogDedupeMs > 0) {
         runtime.infoLogLast = runtime.infoLogLast || {};
         var dedupeKey = step + ":" + ((details && details.reason) || "");
         var loggedAt = runtime.infoLogLast[dedupeKey] || 0;
         var current = Date.now();
-        if (current - loggedAt < 5000) {
+        if (current - loggedAt < CONFIG.infoLogDedupeMs) {
           return;
         }
         runtime.infoLogLast[dedupeKey] = current;

@@ -964,12 +964,12 @@
         return;
       }
       runtime.listenersRegistered = true;
-      infoDecision("listeners:register", {
+      debugDecision("listeners:register", {
         reason: "register global auth lifecycle listeners once"
       });
 
       window.addEventListener("message", function (event) {
-        infoDecision("listener:event", {
+        debugDecision("listener:event", {
           event: "message",
           reason: "window message listener fired before auth message filtering",
           origin: event.origin,
@@ -983,7 +983,7 @@
       });
 
       document.addEventListener("visibilitychange", function () {
-        infoDecision("listener:event", {
+        debugDecision("listener:event", {
           event: "visibilitychange",
           reason: "document visibilitychange listener fired before auth reconciliation",
           hidden: document.hidden
@@ -994,7 +994,7 @@
       });
 
       window.addEventListener("focus", function () {
-        infoDecision("listener:event", {
+        debugDecision("listener:event", {
           event: "focus",
           reason: "window focus listener fired before auth reconciliation"
         });
@@ -1004,7 +1004,7 @@
       });
 
       window.addEventListener("pageshow", function () {
-        infoDecision("listener:event", {
+        debugDecision("listener:event", {
           event: "pageshow",
           reason: "window pageshow listener fired before auth reconciliation"
         });
@@ -1117,7 +1117,7 @@
       if (!runtime.domReadyReconcileRegistered) {
         runtime.domReadyReconcileRegistered = true;
         document.addEventListener("DOMContentLoaded", function () {
-          infoDecision("listener:event", {
+          debugDecision("listener:event", {
             event: "DOMContentLoaded",
             reason: "document DOMContentLoaded listener fired before auth reconciliation"
           });

@@ -13,7 +13,7 @@
   },
   "parent": "index.json",
   "sections": {
-    "rich_text_yddrz": {
+    "rich_text_nfitD": {
       "type": "rich-text",
       "disabled": false,
       "settings": {
@@ -21,35 +21,35 @@
         "content_alignment": "center",
         "color_scheme": "",
         "full_width": true,
-        "header-c6b1b35fd8f1b3e9a92177d00d6fd670": null,
+        "header-cae8ce1c7608bad6b848a76e693265c4": null,
         "padding_top": 40,
         "padding_bottom": 52
       },
       "blocks": {
-        "heading_7iadX": {
+        "heading_fEgpN": {
           "type": "heading",
           "disabled": false,
           "settings": {
-            "heading": "德国专属",
+            "heading": "德国可见",
             "heading_size": "h1"
           }
         },
-        "text_gEaCy": {
+        "text_t7WEY": {
           "type": "text",
           "disabled": false,
           "settings": {
             "text": "<p>Share information about your brand with your customers. Describe a product, make announcements, or welcome customers to your store.</p>"
           }
         },
-        "button_879Wq": {
+        "button_FKNGi": {
           "type": "button",
           "disabled": false,
           "settings": {
-            "header-128b30336fa7c348f5797b0d5a339f98": null,
+            "header-17a711028a3eb0052022c3454bc5a71c": null,
             "button_label": "Button label",
             "button_link": "",
             "button_style_secondary": false,
-            "header-4af7436f543507e461483341ab7e43f7": null,
+            "header-a76f0e0d125a330fb30ea01bf50353d0": null,
             "button_label_2": "",
             "button_link_2": "",
             "button_style_secondary_2": false
@@ -57,18 +57,18 @@
         }
       },
       "block_order": [
-        "heading_7iadX",
-        "text_gEaCy",
-        "button_879Wq"
+        "heading_fEgpN",
+        "text_t7WEY",
+        "button_FKNGi"
       ],
       "name": "t:sections.rich-text.presets.name"
     }
   },
   "order": [
     "image_banner",
-    "rich_text_yddrz",
     "rich_text",
     "featured_collection",
+    "rich_text_nfitD",
     "collage",
     "video",
     "multicolumn"

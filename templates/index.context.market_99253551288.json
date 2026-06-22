@@ -12,5 +12,65 @@
     "market": "德国"
   },
   "parent": "index.json",
-  "sections": {}
+  "sections": {
+    "rich_text_yddrz": {
+      "type": "rich-text",
+      "disabled": false,
+      "settings": {
+        "desktop_content_position": "center",
+        "content_alignment": "center",
+        "color_scheme": "",
+        "full_width": true,
+        "header-c6b1b35fd8f1b3e9a92177d00d6fd670": null,
+        "padding_top": 40,
+        "padding_bottom": 52
+      },
+      "blocks": {
+        "heading_7iadX": {
+          "type": "heading",
+          "disabled": false,
+          "settings": {
+            "heading": "德国专属",
+            "heading_size": "h1"
+          }
+        },
+        "text_gEaCy": {
+          "type": "text",
+          "disabled": false,
+          "settings": {
+            "text": "<p>Share information about your brand with your customers. Describe a product, make announcements, or welcome customers to your store.</p>"
+          }
+        },
+        "button_879Wq": {
+          "type": "button",
+          "disabled": false,
+          "settings": {
+            "header-128b30336fa7c348f5797b0d5a339f98": null,
+            "button_label": "Button label",
+            "button_link": "",
+            "button_style_secondary": false,
+            "header-4af7436f543507e461483341ab7e43f7": null,
+            "button_label_2": "",
+            "button_link_2": "",
+            "button_style_secondary_2": false
+          }
+        }
+      },
+      "block_order": [
+        "heading_7iadX",
+        "text_gEaCy",
+        "button_879Wq"
+      ],
+      "name": "t:sections.rich-text.presets.name"
+    }
+  },
+  "order": [
+    "image_banner",
+    "rich_text_yddrz",
+    "rich_text",
+    "featured_collection",
+    "collage",
+    "video",
+    "multicolumn"
+  ]
 }

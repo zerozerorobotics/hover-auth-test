@@ -17,7 +17,7 @@
       "settings": {},
       "blocks": {
         "announcement-bar-0": {
-          "disabled": true,
+          "disabled": false,
           "settings": {}
         }
       }

@@ -1,0 +1,112 @@
+{% schema %}
+{
+  "name": "support-page",
+  "settings": [
+    {
+      "type": "text",
+      "id": "title",
+      "label": "顶部标题"
+    },
+    {
+      "type": "image_picker",
+      "id": "topImage",
+      "label": "顶部图片区域"
+    },
+    
+  ],
+  "blocks": [
+    
+    
+    
+  ],
+  "presets": [
+    {
+      "name": "support-page"
+    }
+  ]
+}
+{% endschema %}
+
+<div class='tw-relative'>
+  <div class='tw-w-full tw-flex tw-justify-center tw-items-center tw-flex-col tw-bg-neutral-100 tw-pt-20 tw-pb-[8rem] max-md:tw-pb-[6rem]'>
+    {{
+      section.settings.topImage
+      | image_url: width:1000
+      | image_tag:
+        class: 'tw-w-[25.4rem] tw-h-[18.1rem] max-md:tw-w-[22.789rem] max-md:tw-h-[9rem]'
+    }}
+    <p class='tw-font-[500] tw-text-[4rem] max-md:tw-text-[2.6rem] tw-text-nowrap'>
+      {{ section.settings.title }}
+    </p>
+  </div>
+</div>
+
+
+<script>
+  var bindSiteJumpSupport = bindSiteJumpSupport
+  ? bindSiteJumpSupport
+  : function bindSiteJumpSupport(els, links) {
+      if (!els || !links) {
+        throw new Error("SiteJump: elements and links are required");
+      }
+
+      const SITE_JUMP_MAP = links;
+      const arr = SITE_JUMP_MAP.split("\n"); // 按换行符拆分为数组
+      const siteMap = {};
+
+      // 解析站点地图
+      arr.forEach((item) => {
+        const [key, value] = item.split(": ");
+        if (key && value) {
+          siteMap[key.trim()] = value.trim();
+        }
+      });
+
+      const countryElement = document.querySelector(".countryWord");
+
+        if (!countryElement) {
+          console.error("SiteJump: Country element not found");
+          return;
+        }
+
+        const country = countryElement.innerText.trim();
+        const targetUrl = siteMap[country] || siteMap["default"] || "/";
+
+        els.forEach((el) => {
+          if (el.tagName.toLowerCase() === "a") {
+            el.href = targetUrl + el.getAttribute("href"); // 拼接站点地址
+          }
+
+          console.log("这是el", el);
+
+          // 绑定点击事件
+          el.onclick = (event) => {
+            event.preventDefault(); // 阻止默认跳转
+            toSubSiteBP(targetUrl + el.getAttribute("href")); // 跳转到拼接后的地址
+          };
+        });
+    };
+
+</script>
+{% comment %} 调用bindSiteJump {% endcomment %}
+<script>
+  document.addEventListener('DOMContentLoaded',()=>{
+    const siteJump = document.querySelectorAll('.site-jump');
+    console.log("这是siteJump",siteJump);
+
+    let links = "";
+    {% for block in section.blocks %}
+      {% if block.type == 'AccessoryItem' %}
+        links += `{{ block.settings.linkmap | escape }}\n`;
+      {% endif %}
+    {% endfor %}
+
+    console.log('这是链接地图',links);
+
+    bindSiteJumpSupport(siteJump,links);
+  })
+</script>
+
+
+
+<style></style>

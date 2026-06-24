@@ -1,0 +1,137 @@
+{% schema %}
+{
+  "name": "support-sticky",
+  "settings": [
+    {
+      "type": "text",
+      "id": "functionOne",
+      "label": "功能一文本"
+    },
+    
+    {
+      "type": "text",
+      "id": "functionTwo",
+      "label": "功能二文本"
+    },
+    {
+      "type": "text",
+      "id": "functionThree",
+      "label": "功能三文本"
+    }
+  ],
+  "blocks": [
+  ],
+  "presets": [
+    {
+      "name": "support-sticky"
+    }
+  ]
+}
+{% endschema %}
+
+<div class='tw-w-full tw-flex tw-justify-center tw-items-center tw-py-8 tw-sticky tw-top-0 tw-bg-white' style="z-index:10;">
+  <div class='tw-w-[40rem] tw-flex tw-justify-between tw-items-center max-md:tw-w-[30rem]'>
+    <div
+      id='supportOneA'
+      class='tw-text-nowrap tw-no-underline tw-text-black'
+    >
+      {{- section.settings.functionOne -}}
+    </div>
+    <div
+      id='supportTwoA'
+      class='tw-text-nowrap tw-no-underline tw-text-black'
+    >
+      {{- section.settings.functionTwo -}}
+    </div>
+    <div
+      id='supportThreeA'
+      class='tw-text-nowrap tw-no-underline tw-text-black'
+    >
+      {{- section.settings.functionThree -}}
+    </div>
+  </div>
+</div>
+
+<script>
+  // 初始化
+  document.addEventListener('DOMContentLoaded', () => {
+    sliders[0].click();
+    {% comment %} filterSupportItems(); {% endcomment %}
+     
+  const supportOneA = document.querySelector('#supportOneA');
+  const supportTwoA = document.querySelector('#supportTwoA');
+  const supportThreeA = document.querySelector('#supportThreeA');
+  const supportOne = document.querySelector('#supportOne');
+  const supportTwo = document.querySelector('#supportTwo');
+  const supportThree = document.querySelector('#supportThree');
+
+  supportOneA.onclick=()=>{
+    const offsetTop = supportOne.getBoundingClientRect().top + window.scrollY - 40;
+  window.scrollTo({
+    top: offsetTop,
+    behavior: 'smooth',
+  });
+  {% comment %} supportOneA.classList.add('tw-font-bold');
+      supportTwoA.classList.remove('tw-font-bold');
+      supportThreeA.classList.remove('tw-font-bold'); {% endcomment %}
+  }
+  supportTwoA.onclick=()=>{
+    const offsetTop = supportTwo.getBoundingClientRect().top + window.scrollY - 60;
+  window.scrollTo({
+    top: offsetTop,
+    behavior: 'smooth',
+  });
+  {% comment %} supportOneA.classList.remove('tw-font-bold');
+      supportTwoA.classList.add('tw-font-bold');
+      supportThreeA.classList.remove('tw-font-bold'); {% endcomment %}
+  }
+  supportThreeA.onclick=()=>{
+    const offsetTop = supportThree.getBoundingClientRect().top + window.scrollY - 40;
+  window.scrollTo({
+    top: offsetTop,
+    behavior: 'smooth',
+  });
+  {% comment %} supportOneA.classList.remove('tw-font-bold');
+      supportTwoA.classList.remove('tw-font-bold');
+      supportThreeA.classList.add('tw-font-bold'); {% endcomment %}
+  }
+
+  // 监听supportOne距离顶部的距离
+  window.addEventListener('scroll', () => {
+    const supportOneTop = supportOne.getBoundingClientRect().top -41;
+    const supportTwoTop = supportTwo.getBoundingClientRect().top-61;
+    const supportThreeTop = supportThree.getBoundingClientRect().top-41;
+    // 获取窗口的宽度
+    {% comment %} const windowWidth = window.innerWidth;
+    if (windowWidth <= 768) {
+      supportOneTop = supportOne.getBoundingClientRect().top - 21;
+      supportTwoTop = supportTwo.getBoundingClientRect().top - 101;
+      supportThreeTop = supportThree.getBoundingClientRect().top - 101;
+    } {% endcomment %}
+    {% comment %} console.log("这是三个模块的打印数据",supportOneTop,supportTwoTop,supportThreeTop); {% endcomment %}
+    if (supportOneTop <= 0 && supportTwoTop > 0) {
+      // 对对应的a标签添加tw-font-bold 的class
+      supportOneA.classList.add('tw-font-bold');
+      supportTwoA.classList.remove('tw-font-bold');
+      supportThreeA.classList.remove('tw-font-bold');
+    } else if (supportTwoTop <= 0 && supportThreeTop > 20) {
+      supportOneA.classList.remove('tw-font-bold');
+      supportTwoA.classList.add('tw-font-bold');
+      supportThreeA.classList.remove('tw-font-bold');
+    } else if (supportThreeTop <= 20) {
+      supportOneA.classList.remove('tw-font-bold');
+      supportTwoA.classList.remove('tw-font-bold');
+      supportThreeA.classList.add('tw-font-bold');
+    }
+  });
+
+  });
+</script>
+
+<style>
+    #shopify-section-template--24324679008559__support_sticky_Rmt64c{
+        position: sticky;
+        top: 0;
+        z-index: 999;
+    }
+</style>

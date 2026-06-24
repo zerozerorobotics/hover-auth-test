@@ -1,0 +1,156 @@
+{% schema %}
+{
+  "name": "support-tutorials",
+  "settings": [
+    {
+      "type": "text",
+      "id": "functionTwo",
+      "label": "功能二文本"
+    },
+    {
+      "type": "number",
+      "id": "padding_top",
+      "label": "边距顶部",
+      "default": 80
+    },
+    {
+      "type": "number",
+      "id": "padding_bottom",
+      "label": "边距底部",
+      "default": 60
+    }
+  ],
+  "blocks": [
+    {
+      "type": "TutoialVideoItem",
+      "name": "TutoialVideoItem",
+      "settings": [
+        {
+          "type": "image_picker",
+          "id": "videoImage",
+          "label": "视频图片"
+        },
+        {
+          "type": "text",
+          "id": "videoDescription",
+          "label": "视频描述"
+        },
+        {
+          "type": "video",
+          "id": "videoLink",
+          "label": "视频链接"
+        }
+      ]
+    },
+  ],
+  "presets": [
+    {
+      "name": "support-tutorials"
+    }
+  ]
+}
+{% endschema %}
+
+<div>
+    {% comment %} 第二部分 {% endcomment %}
+  <div
+    id='supportTwo'
+    class='tw-w-full  tw-flex tw-justify-center tw-items-center tw-flex-col tw-bg-neutral-100 max-md:tw-px-[2rem] max-md:tw-py-0' style="padding-top: {{ section.settings.padding_top }}px; padding-bottom: {{ section.settings.padding_bottom }}px;"
+  >
+    <p class='tw-font-bold tw-text-[4rem] tw-mb-[6rem] max-md:tw-text-[2.6rem] max-md:tw-mb-[3rem] max-md:tw-mt-0'>
+      {{ section.settings.functionTwo }}
+    </p>
+    <div class='tw-flex tw-w-full tw-max-w-[122rem] tw-justify-between tw-flex-wrap max-md:tw-flex-col'>
+      {% for block in section.blocks %}
+        {%- if block.type == 'TutoialVideoItem' -%}
+          <div class='tw-w-[48.4%] max-md:tw-w-full max-md:tw-h-[22.4rem] tw-h-[38.2rem] max-md:tw-mb-[2rem]'>
+            {% assign video = block.settings.videoLink.sources | where: 'format', 'mp4' | first  %}
+            <div
+              class='supportVideo tw-w-full tw-h-[33.116rem] max-md:tw-h-[18.8rem] tw-cursor-pointer'
+              data-video='{{video.url}}'
+            >
+              {%- assign img_master = block.settings.videoImage -%}
+              {{
+                img_master
+                | image_url: width:1000
+                | image_tag: 
+                  class: 'tw-w-full tw-h-full tw-rounded-[2.4rem] max-md:tw-rounded-[1.2rem] tw-max-w-[62rem] '
+              }}
+              {% comment %}
+                {{
+                 block.settings.videoLink
+                 | video_tag:
+                   autoplay: false,
+                   loop: true,
+                   controls: true,
+                   muted: true,
+                   class: 'tw-w-full tw-h-full tw-rounded-[2.4rem] tw-max-w-[62rem] '
+                }}
+              {% endcomment %}
+            </div>
+            <p class='tw-mt-[2rem] tw-text-[2rem] max-md:tw-text-[1.6rem] max-md:tw-mt-[1.2rem] tw-font-medium'>
+              {{ block.settings.videoDescription }}
+            </p>
+          </div>
+        {%- endif -%}
+      {% endfor %}
+    </div>
+  </div>
+  <div class='mask tw-bg-[#000c] tw-fixed tw-w-full tw-top-0 tw-h-[100vh] tw-hidden tw-z-[100]'>
+    {% comment %}
+      {% for block in section.blocks %}
+        {% if block.type == 'TutoialVideoItem' %}
+          {% comment %} {{ block.settings.videoLink.sources[0].url | json }} {% endcomment %}
+
+        {% endif %}
+      {% endfor %}
+    {% endcomment %}
+    <div class='maskclose tw-w-full tw-h-full tw-flex tw-justify-center tw-items-center'>
+      <video
+        class='video tw-w-[80%] tw-h-[fit-content] max-md:tw-max-h-[50%] tw-relative tw-z-[999999]'
+        controls
+      ></video>
+    </div>
+  </div>
+</div>
+
+<script>
+    const supportVideo = document.querySelectorAll('.supportVideo');
+  supportVideo.forEach((video) => {
+    video.addEventListener('click', () => {
+      const index = Array.from(supportVideo).indexOf(video);
+      console.log('点击了视频',index);
+      let videoLink = video.getAttribute('data-video');
+      // 去掉字符串中的\和"
+      videoLink = videoLink.replace(/\\/g, '');
+      videoLink = videoLink.replace(/"/g, '');
+
+      console.log('视频链接',videoLink);
+      // 在当前页面全屏播放
+      const mask = document.querySelector('.mask');
+      // 监听mask距离底部的距离,然后滚动到底部0
+
+
+      const maskclose = document.querySelector('.maskclose');
+      const videoElement = document.querySelector('.video');
+      // videoElement停止冒泡
+      videoElement.addEventListener('click', (e) => {
+        e.stopPropagation();
+      });
+      document.documentElement.style.overflow = 'hidden';
+      videoElement.src = videoLink;
+      video.addEventListener('loadeddata', () => {
+    video.currentTime = 0; // 确保展示第一帧
+  });
+      mask.classList.remove('tw-hidden');
+      maskclose.addEventListener('click', () => {
+        document.documentElement.style.overflow = 'auto';
+        mask.classList.add('tw-hidden');
+        videoElement.pause();
+      });
+
+    });
+  });
+</script>
+
+<style></style>

@@ -1,0 +1,118 @@
+{% schema %}
+{
+  "name": "support-accessory",
+  "settings": [
+    {
+      "type": "text",
+      "id": "functionThree",
+      "label": "功能三文本"
+    }
+  ],
+  "blocks": [
+    {
+      "name": "AccessoryItem",
+      "type": "AccessoryItem",
+      "settings": [
+        {
+          "type": "image_picker",
+          "id": "itemImage",
+          "label": "卡片图片"
+        },
+        {
+          "type": "text",
+          "id": "itemDescription",
+          "label": "卡片描述"
+        },
+        {
+          "type": "url",
+          "id": "itemLink",
+          "label": "卡片链接"
+        },
+        {
+          "type":"textarea",
+          "id":"linkmap",
+          "label":"链接地图"
+        }
+      ]
+    },
+  ],
+  "presets": [
+    {
+      "name": "support-accessory"
+    }
+  ]
+}
+{% endschema %}
+
+{% comment %} 第三部分 {% endcomment %}
+  <div
+    id='supportThree'
+    class='tw-w-full tw-pt-8 tw-pb-[16rem] max-md:tw-pb-8 tw-flex tw-justify-center tw-items-center tw-flex-col tw-bg-neutral-100 max-md:tw-px-[2rem] max-md:tw-pt-0'
+  >
+    <p class='tw-font-bold tw-text-[4rem] tw-mb-[6rem] max-md:tw-text-[2.6rem] max-md:tw-mb-[3rem]'>
+      {{ section.settings.functionThree }}
+    </p>
+    <div class='tw-flex tw-max-w-[122rem] tw-justify-between tw-flex-wrap tw-w-full'>
+      {% for block in section.blocks %}
+        {%- if block.type == 'AccessoryItem' -%}
+          <div
+            class='acc tw-w-[31.4%] tw-h-[33.5rem] max-md:tw-min-w-[49%] max-md:tw-h-[16.1rem] max-md:tw-mb-[2rem] tw-no-underline site-jump'
+            target="_blank"
+            data-item="{{ block.settings.itemDescription }}"
+            data-link="{{ block.settings.linkmap }}"
+          >
+            <div class='tw-w-full tw-h-[28.5rem] max-md:tw-h-[12rem] max-md:tw-w-[16.1rem]'>
+              {{
+                block.settings.itemImage
+                | image_url: width:1000
+                | image_tag:
+                  class: 'tw-w-full tw-h-full tw-rounded-[2.4rem] max-md:tw-rounded-[1.2rem]'
+              }}
+            </div>
+            <p class='tw-mt-[2rem] tw-text-[2rem] max-md:tw-mt-[0.8rem]  max-md:tw-text-[1.6rem] tw-text-black tw-font-medium'>
+              {{ block.settings.itemDescription }}
+            </p>
+          </div>
+        {%- endif -%}
+      {% endfor %}
+    </div>
+  </div>
+
+{% comment %} <script> bindSiteJump(document.getElementById(''), {{ section.settings.storeMap | json }})</script> {% endcomment %}
+<script>
+  const accArr = document.querySelectorAll('.acc');
+  accArr.forEach((item)=>{
+    item.addEventListener('click',(e)=>{
+      console.log(item, item.dataset.link)
+      const SITE_JUMP_MAP = item.dataset.link;
+      const arr = SITE_JUMP_MAP.split('\n'); // 按换行符拆分为数组
+      const siteMap = {};
+      // 将站点地图解析成对象
+      arr.forEach((item) => {
+        const [key, value] = item.split(': ');
+        if (key && value) {
+          siteMap[key.trim()] = value.trim();
+        }
+      });
+      const nowCountry = getCookie('PreferredCountry')
+
+      // 对象的key与当前国家进行匹配
+      const matchedKey = Object.keys(siteMap).find((key) => {
+        return key.toLowerCase() === nowCountry.toLowerCase();
+      });
+
+      // 如果匹配到key，则跳转到对应的链接
+      if (matchedKey) {
+        const matchedValue = siteMap[matchedKey];
+        window.open(matchedValue, '_blank');
+      } else {
+        // 如果没有匹配到key，则跳转到默认链接
+        const defaultValue = siteMap['default'];
+        if (defaultValue) {
+          window.open(defaultValue, '_blank');
+        }
+      }
+    })
+  })
+</script>
+<style></style>

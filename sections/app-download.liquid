@@ -1,0 +1,244 @@
+{{ 'app-download.css' | asset_url | stylesheet_tag }}
+{% schema %}
+{
+  "name": "Support App Download",
+  "limit": 1,
+  "max_blocks": 2,
+  "settings": [
+    {
+      "type": "text",
+      "id": "title",
+      "label": "Title"
+    },
+    {
+      "type": "image_picker",
+      "id": "bg",
+      "label": "Background Image"
+    },
+    {
+      "type": "image_picker",
+      "id": "main_img_mb",
+      "label": "Main Image"
+    },
+    {
+      "type": "image_picker",
+      "id": "qr_code",
+      "label": "QR Code"
+    },
+    {
+      "type": "text",
+      "id": "hover_text",
+      "label": "Hover Text"
+    },
+    {
+      "type": "text",
+      "id": "hover_tip",
+      "label": "Hover Tip"
+    }
+  ],
+  "blocks": [
+    {
+      "name": "App Platform",
+      "type": "card",
+      "settings": [
+        {
+          "type": "text",
+          "id": "name",
+          "label": "Platform Name"
+        },
+        {
+          "type": "image_picker",
+          "id": "icon",
+          "label": "Platform Icon"
+        },
+
+        {
+          "type": "text",
+          "id": "text",
+          "label": "Download Text"
+        },
+        {
+          "type": "text",
+          "id": "link",
+          "label": "Download Link"
+        }
+      ]
+    }
+  ],
+  "presets": [
+    {
+      "name": "Support App Download"
+    }
+  ]
+}
+{% endschema %}
+{% liquid
+  assign data = section.settings
+  assign platforms = section.blocks
+%}
+
+<div class="tw-w-full max-lg:tw-pt-[24px]">
+  <div class="tw-w-full tw-flex tw-items-center tw-justify-center">
+    
+
+        <div class="max-lg:tw-w-full max-lg:tw-px-[20px] lg:tw-w-[90vw] 2xl-[1440px] tw-relative tw-flex max-lg:tw-flex-col tw-items-center tw-justify-center">
+          <div class="tw-flex tw-flex-col md:tw-w-[46.8rem] max-md:tw-mr-0 tw-mr-[5.6rem] max-lg:tw-mr-0">
+            <div class="tw-font-bold max-lg:tw-mx-auto tw-text-[3.6rem] max-md:tw-text-[2.4rem] max-md:tw-leading-[3.6rem] tw-leading-[5.4rem]">{{ data.title }}</div>
+            <div class="tw-font-normal  tw-text-[2.8rem] max-lg:tw-mx-auto max-md:tw-text-[1.5rem] max-md:tw-leading-[2.25rem] tw-leading-[4.2rem] tw-mb-[3.2rem] max-lg:tw-mb-[.2rem]">{{ data.hover_tip }}</div>
+            <div class="tw-w-full tw-mx-0 max-lg:tw-mx-auto tw-flex max-lg:tw-flex-col">
+              <img src='{{ data.qr_code | image_url }}' width="auto" height="auto" class="tw-w-[12rem] lg:tw-hidden max-lg:tw-mx-auto max-md:tw-mb-[2.4rem] tw-h-[12rem]" />
+              <div class="tw-flex tw-justify-center tw-items-center">
+                {% for block in platforms %}
+                <a
+                  href='{{ block.settings.link }}'
+                  class='tw-w-fit tw-h-[8.2rem] {% if block.settings.name =='Android' %}tw-mr-[2.4rem]{% endif %}  max-md:tw-h-[5.7rem] tw-text-black tw-no-underline tw-items-center tw-bg-white tw-rounded-[1.6rem] tw-flex tw-px-[2.4rem] tw-py-[1.2rem] max-md:tw-px-[.8rem] max-md:tw-py-[1.4rem]'
+                  id="{{ block.settings.name }}link"
+                >
+                  <img
+                    class='tw-w-[4.8rem] tw-h-[4.8rem] tw-mr-[.87rem] max-md:tw-mr-[1.2rem] max-md:tw-w-[3.2rem] max-md:tw-h-[3rem]'
+                    width='auto'
+                    height='auto'
+                    src='{{ block.settings.icon | image_url }}'
+                  >
+                  <div class='tw-w-fit tw-h-[5.8rem] max-md:tw-h-[4.1rem]'>
+                    <div class='tw-font-normal tw-text-nowrap tw-text-[1.5rem] max-md:tw-text-[1.2rem] max-md:tw-leading-[1.8rem] tw-leading-[2.25rem]'>
+                      {{ block.settings.text }}
+                    </div>
+                    <div class='tw-font-medium tw-text-nowrap tw-text-[2.6rem] max-md:tw-text-[1.8rem] max-md:tw-leading-[2.7rem] tw-leading-[3.9rem]'>
+                      {{ block.settings.name }}
+                    </div>
+                  </div>
+                </a>
+                {% endfor %}
+              </div>
+
+            </div>
+          </div>
+          <img src='{{ data.qr_code | image_url }}' width="auto" height="auto" class="tw-w-[22rem] max-lg:tw-hidden tw-h-auto" />
+          
+          <img class="mainfest max-lg:tw-w-full max-lg:tw-mt-[30px] lg:tw-w-[25%] lg:tw-ml-[40px] tw-object-contain tw-h-auto" width="auto" height="auto" src='{{ data.main_img_mb | image_url }}' />
+          
+        </div>
+    
+  </div>
+</div>
+
+{% comment %} <div class='app-dl'>
+  <div class='app-container'>
+    <div class='app-image-container'>
+      <img
+        class=' app-image'
+        width='auto'
+        height='auto'
+        src='{{ data.main_img_mb | image_url }}'
+      >
+    </div>
+    <div class="app-outcontent">
+    <div class='app-content'>
+      <h2 class='app-title'>
+        {{ data.title }}
+      </h2>
+
+      {% comment %} hover商标 {% endcomment %}
+      {% comment %} <div class='logo-content'>
+        <img
+          class='app-logo'
+          width='{{ 100 }}'
+          height='{{ 100 }}'
+          alt='{{ data.hover_text }}'
+          src='{{ data.hover_icon | image_url }}'
+        >
+        <div class=' hover-text'>
+          <div>{{ data.hover_text }}</div>
+          <div class='hover-tip'>
+            {{ data.hover_tip }}
+          </div>
+        </div>
+      </div> {% endcomment %}
+      <div class='mb-hover-text'>{{ data.hover_tip }}</div>
+
+      {% comment %} 下载按钮 {% endcomment %}
+      
+        <div class='download-content'>
+          {% for block in platforms %}
+          <a
+            href='{{ block.settings.link }}'
+            class='link'
+            id="{{ block.settings.name }}link"
+          >
+            <img
+              class='link-image'
+              width='auto'
+              height='auto'
+              src='{{ block.settings.icon | image_url }}'
+            >
+            <div class='link-text'>
+              <div class='atext'>
+                {{ block.settings.text }}
+              </div>
+              <div class='aname'>
+                {{ block.settings.name }}
+              </div>
+            </div>
+          </a>
+          {% endfor %}
+        </div>
+      </div>
+      <img
+      class='pcqr'
+      width='auto'
+      height='auto'
+      src='{{ data.qr_code | image_url }}'
+    >
+    </div>
+    
+    
+    {% comment %} 桌面端的二维码 {% endcomment %}
+    
+    <div class='pc-image'>
+      <img
+        width='auto'
+        height='auto'
+        src='{{ data.main_img | image_url }}'
+      >
+        </div>
+  </div>
+</div> {% endcomment %}
+
+
+<script>
+window.addEventListener('load', function() {
+
+
+  var xhr = new XMLHttpRequest();
+  xhr.open('GET', 'https://release.gethover.com/api/v2/android/upgrade?productSeries=h130', true);
+  xhr.setRequestHeader('Content-Type', 'application/json');
+  
+  xhr.onload = function() {
+    if (xhr.status >= 200 && xhr.status < 300) {
+      try {
+        var data = JSON.parse(xhr.responseText);
+        console.log("---------------",data)
+        var Androidlink = document.getElementById('Androidlink');
+        console.log("---------------",Androidlink)
+        if (Androidlink && data.download) {
+          Androidlink.href = data.download;
+        } else {
+          console.error('元素或下载链接不存在');
+        }
+      } catch (e) {
+        console.error('JSON解析失败:', e);
+      }
+    } else {
+      console.error('请求失败，状态码:', xhr.status);
+    }
+  };
+  
+  xhr.onerror = function() {
+    console.error('网络请求错误');
+  };
+  
+  xhr.send();
+});
+</script>
+

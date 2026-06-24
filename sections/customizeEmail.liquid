@@ -1,0 +1,312 @@
+<style>
+  @media (min-width: 750px) {
+    * {
+      margin: 0;
+      padding: 0;
+    }
+
+    .e-box {
+      width: 100%;
+      height: 34.375vw;
+      background: rgba(246, 250, 255, 0.9);
+    }
+
+    .e-text {
+      height: 11.25vw;
+      padding-top: 4.7916667vw;
+    }
+
+    .e-title {
+      width: 14.333333vw;
+      height: 2.96875vw;
+      font-size: 2.39583333vw;
+      {% comment %} font-family: Montserrat, Montserrat; {% endcomment %}
+      font-weight: 600;
+      color: #000000;
+      line-height: 2.96875vw;
+      margin: auto;
+    }
+
+    .e-con {
+      width: 29.6875vw;
+      height: 2.239583333vw;
+      font-size: 0.83333vw;
+      font-family: Poppins;
+      font-weight: 400;
+      color: #000000;
+      line-height: 1.04166667vw;
+      margin: 1.25vw auto 3.48958333vw;
+      text-align: center;
+    }
+
+    .e-bot {
+      width: 62.39583333vw;
+      margin: 3.48958333vw auto;
+      display: flex;
+    }
+
+    .bot {
+      width: 20.10416667vw;
+      height: 11.4583333vw;
+      background: #FFFFFF;
+      box-shadow: 0px 6px 18px 0px rgba(12, 83, 172, 0.08);
+      border-radius: 12px;
+      position: relative;
+    }
+
+    .bot:nth-child(2) {
+      margin: 0 1.04166667vw;
+    }
+
+    .bot-title {
+      height: 1.197916667vw;
+      font-size: 0.833333vw;
+      {% comment %} font-family: Montserrat, Montserrat; {% endcomment %}
+      font-weight: bold;
+      color: #000000;
+      line-height: 1.0416667vw;
+      margin: 1.5vw 0 0 3.4375vw;
+    }
+
+    .bot a {
+      text-align: center;
+      /* width: 13.697916667vw; */
+      height: 1.197916667vw;
+      font-size: 1.0416667vw;
+      {% comment %} font-family: Montserrat, Montserrat; {% endcomment %}
+      font-weight: bolder;
+      color: #000000;
+      line-height: 1.25vw;
+      display: block;
+      margin: 4.114583333vw auto 0;
+    }
+
+    .e-img{
+      width: 100%;
+      position: absolute;
+      top: 2px;
+      left: 2px;
+    }
+  }
+
+  @media (max-width: 749px) {
+    * {
+      margin: 0;
+      padding: 0;
+    }
+
+    .e-box {
+      width: 100%;
+      height: 187.0667vw;
+      background: rgba(246, 250, 255, 0.9);
+    }
+
+    .e-text {
+      height: 50.8vw;
+      padding-top: 10.6667vw;
+    }
+
+    .e-title {
+      width: 60.5333vw;
+      height: 9.7333vw;
+      font-size: 8vw;
+      {% comment %} font-family: Montserrat, Montserrat; {% endcomment %}
+      font-weight: bold;
+      color: #000000;
+      line-height: 9.7333vw;
+      margin-left: 10.6667vw;
+    }
+
+    .e-con {
+      width: 71.7333vw;
+      height: 13.6vw;
+      font-size: 3.7333vw;
+      font-family: Poppins;
+      font-weight: 400;
+      color: #000000;
+      line-height: 17px;
+      margin: 4.8vw 0 8vw 10.6667vw;
+    }
+
+    .e-bot {
+      width: 78.6667vw;
+      margin: auto;
+    }
+
+    .bot {
+      width: 78.6667vw;
+      height: 36.1333vw;
+      background: #FFFFFF;
+      box-shadow: 0px 1.6vw 4.8vw 0px rgba(12, 83, 172, 0.08);
+      border-radius: 1.6vw;
+      padding-top: 3.8667vw;
+      position: relative;
+    }
+
+    .bot:nth-child(2) {
+      margin: 4.8vw 0;
+    }
+
+    .bot-title {
+      width: 68.8vw;
+      font-size: 3.7333vw;
+      {% comment %} font-family: Montserrat, Montserrat; {% endcomment %}
+      font-weight: bold;
+      color: #000000;
+      line-height: 2.6667vw;
+      margin: 2vw 0 0 15.4667vw;
+    }
+
+    .bot a {
+      width: 63.0667vw;
+      height: 8vw;
+      font-size: 4vw;
+      {% comment %} font-family: Montserrat, Montserrat; {% endcomment %}
+      font-weight: bolder;
+      color: #000000;
+      line-height: 5.8667vw;
+      display: block;
+      margin: 11.8667vw auto 0;
+      text-align: center;
+    }
+
+    .e-img{
+      width: 100%;
+      position: absolute;
+      top: 2px;
+      left: 2px;
+    }
+  }
+</style>
+
+<section>
+  <div class='e-box'>
+    <div class='e-text'>
+      <p class='e-title'>Contact Us</p>
+      <p class='e-con'>
+        If you have any questions or inquiries. Feel free to contact the
+        respective email addresses based on your needs.
+      </p>
+    </div>
+
+    <div class='e-bot'>
+      <div class='bot e-dw1'>
+        <img
+          src='https://cdn.shopify.com/s/files/1/0796/1362/4605/files/Customer_Service.png?v=1701935579'
+          alt=''
+          class='e-img'
+        >
+        <p class='bot-title'>Customer Service</p>
+        <a href='mailto:support@hoverair.com'>support@hoverair.com</a>
+      </div>
+
+      <div class='bot e-dw2'>
+        <img
+          src='https://cdn.shopify.com/s/files/1/0796/1362/4605/files/Marketing_Collaboration.png?v=1701936263'
+          alt=''
+          class='e-img'
+        >
+        <p class='bot-title'>Marketing Collaboration</p>
+        <a href='mailto:marketing@hoverair.com'>marketing@hoverair.com</a>
+      </div>
+
+      <div class='bot e-dw3'>
+        <img
+          src='https://cdn.shopify.com/s/files/1/0796/1362/4605/files/Wholesale_and_Distributors.png?v=1701936263'
+          alt=''
+          class='e-img'
+        >
+        <p class='bot-title'>Wholesale and Distributors</p>
+        <a href='mailto:sales@hoverair.com'>sales@hoverair.com</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<script>
+  document.addEventListener('DOMContentLoaded', (event) => {
+    ScrollTrigger.create({
+      trigger: '.e-title',
+      //markers: true,
+      start: 'top 80%',
+      end: 'top 80%',
+      animation: gsap
+        .timeline()
+        .fromTo(
+          '.e-title',
+          { y: 100, duration: 0.8, opacity: 0 },
+          { y: 0, opacity: 1, duration: 0.8 }
+        ),
+    });
+    ScrollTrigger.create({
+      trigger: '.e-con',
+      //markers: true,
+      start: 'top 80%',
+      end: 'top 80%',
+      animation: gsap
+        .timeline()
+        .fromTo(
+          '.e-con',
+          { y: 100, duration: 1, opacity: 0 },
+          { y: 0, opacity: 1, duration: 1 }
+        ),
+    });
+    ScrollTrigger.create({
+      trigger: '.e-dw1',
+      //markers: true,
+      start: 'top 80%',
+      end: 'top 80%',
+      animation: gsap
+        .timeline()
+        .fromTo(
+          '.e-dw1',
+          { y: 100, duration: 1, opacity: 0 },
+          { y: 0, opacity: 1, duration: 1 }
+        ),
+    });
+    ScrollTrigger.create({
+      trigger: '.e-dw2',
+      //markers: true,
+      start: 'top 80%',
+      end: 'top 80%',
+      animation: gsap
+        .timeline()
+        .fromTo(
+          '.e-dw2',
+          { y: 100, duration: 1.3, opacity: 0 },
+          { y: 0, opacity: 1, duration: 1.3 }
+        ),
+    });
+    ScrollTrigger.create({
+      trigger: '.e-dw3',
+      //markers: true,
+      start: 'top 80%',
+      end: 'top 80%',
+      animation: gsap
+        .timeline()
+        .fromTo(
+          '.e-dw3',
+          { y: 100, duration: 1.5, opacity: 0 },
+          { y: 0, opacity: 1, duration: 1.5 }
+        ),
+    });
+  });
+</script>
+
+{% schema %}
+{
+  "name": "customizeEmail",
+  "presets": [
+    {
+      "name": "customizeEmail"
+    }
+  ],
+  "settings": []
+}
+{% endschema %}
+
+{% stylesheet %}
+{% endstylesheet %}
+
+{% javascript %}
+{% endjavascript %}

@@ -21,7 +21,7 @@
         "content_alignment": "center",
         "color_scheme": "",
         "full_width": true,
-        "header-cae8ce1c7608bad6b848a76e693265c4": null,
+        "header-db712cd4197065c5fbb43a02cdce33bf": null,
         "padding_top": 40,
         "padding_bottom": 52
       },
@@ -38,18 +38,18 @@
           "type": "text",
           "disabled": false,
           "settings": {
-            "text": "<p>Share information about your brand with your customers. Describe a product, make announcements, or welcome customers to your store.</p>"
+            "text": "<p>Share information about your brand with your customers. Describe a product, make announcements, or welcome customers to your store.tp1</p>"
           }
         },
         "button_FKNGi": {
           "type": "button",
           "disabled": false,
           "settings": {
-            "header-17a711028a3eb0052022c3454bc5a71c": null,
+            "header-65d22118db5b64ee0a65206cbfb8b4d5": null,
             "button_label": "Button label",
             "button_link": "",
             "button_style_secondary": false,
-            "header-a76f0e0d125a330fb30ea01bf50353d0": null,
+            "header-97ac89399cbe0f8d2f33eae043b40d5f": null,
             "button_label_2": "",
             "button_link_2": "",
             "button_style_secondary_2": false

@@ -20,66 +20,91 @@
   assign active_node = request.query_parameters.node | default: 'all'
   assign browse_page = request.query_parameters.page | default: '1' | plus: 0
   assign browse_limit = section.settings.browse_page_size
-  assign active_node_label = 'All'
-  assign active_node_count = 0
-  if active_node != 'all' and active_node != blank
-    for node in shop.metaobjects.help_nav_node.values
-      assign node_handle = node.system.handle | default: node.handle
-      if node_handle == active_node
-        assign active_node_label = node.title.value | default: node_handle
-        break
-      endif
-    endfor
+  assign nav_nodes_sorted = shop.metaobjects.help_nav_node.values | sort: 'sort_order'
+
+  assign browsing_all = false
+  if active_node == 'all' or active_node == blank
+    assign browsing_all = true
   endif
 
-  if search_q == blank
-    assign nav_nodes_sorted = shop.metaobjects.help_nav_node.values | sort: 'sort_order'
-    assign shown_count = '|'
-    if active_node == 'all' or active_node == blank
-      for node in nav_nodes_sorted
-        for article in node.articles.value
-          assign token = article.handle | prepend: '|' | append: '|'
-          unless shown_count contains token
-            assign shown_count = shown_count | append: article.handle | append: '|'
-            assign active_node_count = active_node_count | plus: 1
-          endunless
-        endfor
-      endfor
-    else
-      for node in nav_nodes_sorted
-        assign node_handle = node.system.handle | default: node.handle
-        assign include_node = false
-        if node_handle == active_node
-          assign include_node = true
-        else
-          assign walk = node
-          for i in (1..10)
-            assign parent_obj = walk.parent.value
-            if parent_obj == blank
-              break
-            endif
-            assign parent_handle = parent_obj.system.handle | default: parent_obj.handle | default: ''
-            if parent_handle == blank
-              break
-            endif
-            if parent_handle == active_node
-              assign include_node = true
-              break
-            endif
-            assign walk = parent_obj
-          endfor
-        endif
-        if include_node
-          for article in node.articles.value
-            assign token = article.handle | prepend: '|' | append: '|'
-            unless shown_count contains token
-              assign shown_count = shown_count | append: article.handle | append: '|'
-              assign active_node_count = active_node_count | plus: 1
-            endunless
-          endfor
-        endif
-      endfor
+  comment
+    单次遍历同时产出两份节点白名单，避免祖先链判断在计数 / SSR 列表 / JSON 里重复三遍：
+      visible_nodes  —— 自身与所有祖先都可见的节点，供客户端切换用的 JSON 使用
+      included_nodes —— 当前选中节点及其子孙，供计数与 SSR 首屏列表使用
+  endcomment
+  assign visible_nodes = '|'
+  assign included_nodes = '|'
+  assign active_node_label = 'All'
+
+  for node in nav_nodes_sorted
+    assign node_handle = node.system.handle | default: node.handle
+    if node_handle == blank
+      continue
     endif
+    if node.visible.value == false
+      continue
+    endif
+
+    if node_handle == active_node
+      assign active_node_label = node.title.value | default: node_handle
+    endif
+
+    assign ancestor_hidden = false
+    assign under_active = false
+    assign walk = node
+    for i in (1..10)
+      assign parent_obj = walk.parent.value
+      if parent_obj == blank
+        break
+      endif
+      if parent_obj.visible.value == false
+        assign ancestor_hidden = true
+        break
+      endif
+      assign parent_handle = parent_obj.system.handle | default: parent_obj.handle | default: ''
+      if parent_handle == blank
+        break
+      endif
+      if parent_handle == active_node
+        assign under_active = true
+      endif
+      assign walk = parent_obj
+    endfor
+
+    if ancestor_hidden
+      continue
+    endif
+    assign visible_nodes = visible_nodes | append: node_handle | append: '|'
+
+    if browsing_all or node_handle == active_node or under_active
+      assign included_nodes = included_nodes | append: node_handle | append: '|'
+    endif
+  endfor
+
+  comment
+    文章去重后计数。article.handle 为空说明引用的 Page 已删除或未发布，
+    直接跳过，否则会渲染出空白卡片并把计数算大。
+  endcomment
+  assign active_node_count = 0
+  assign counted_handles = '|'
+  if search_q == blank
+    for node in nav_nodes_sorted
+      assign node_handle = node.system.handle | default: node.handle
+      assign node_token = node_handle | prepend: '|' | append: '|'
+      unless included_nodes contains node_token
+        continue
+      endunless
+      for article in node.articles.value
+        if article.handle == blank
+          continue
+        endif
+        assign token = article.handle | prepend: '|' | append: '|'
+        unless counted_handles contains token
+          assign counted_handles = counted_handles | append: article.handle | append: '|'
+          assign active_node_count = active_node_count | plus: 1
+        endunless
+      endfor
+    endfor
   endif
 -%}
 
@@ -125,7 +150,12 @@
           <h2 class="help-center-hub__drawer-title" id="help-nav-drawer-title">Categories</h2>
           <button type="button" class="help-center-hub__drawer-close" data-help-nav-close aria-label="Close categories">×</button>
         </div>
-        {% render 'help-nav-tree', active_handle: active_node, hub_url: hub_url, active_node_count: active_node_count %}
+        {% render 'help-nav-tree',
+          active_handle: active_node,
+          hub_url: hub_url,
+          active_node_count: active_node_count,
+          nav_nodes_sorted: nav_nodes_sorted
+        %}
       </div>
     </aside>
 
@@ -137,73 +167,36 @@
 
       <div class="help-center-hub__results" data-help-results-list>
         {%- if search_q == blank -%}
-          {%- comment -%} Initial SSR list; JS takes over on node switch {%- endcomment -%}
+          {%- comment -%}
+            首屏 SSR 列表（无 JS / SEO 用）。节点顺序按 Admin sort_order，
+            载入后 JS 会用完整树的 DFS 重绘，顺序与 Admin 一致。
+          {%- endcomment -%}
           {%- assign shown = '|' -%}
           {%- assign collected = 0 -%}
           {%- assign offset = browse_page | minus: 1 | times: browse_limit -%}
           {%- assign browse_end = offset | plus: browse_limit -%}
 
-          {%- comment -%}
-            SSR fallback: nodes ordered by Admin sort_order.
-            JS re-renders on load with full tree DFS (same order as Admin).
-          {%- endcomment -%}
-          {%- assign nav_nodes_sorted = shop.metaobjects.help_nav_node.values | sort: 'sort_order' -%}
-          {%- if active_node == 'all' or active_node == blank -%}
-            {%- for node in nav_nodes_sorted -%}
-              {%- for article in node.articles.value -%}
-                {%- assign token = article.handle | prepend: '|' | append: '|' -%}
-                {%- unless shown contains token -%}
-                  {%- assign shown = shown | append: article.handle | append: '|' -%}
-                  {%- if collected >= offset and collected < browse_end -%}
-                    {% render 'help-article-card', article: article %}
-                  {%- endif -%}
-                  {%- assign collected = collected | plus: 1 -%}
-                {%- endunless -%}
-              {%- endfor -%}
-            {%- endfor -%}
-          {%- else -%}
-            {%- comment -%}
-              Parent node shows its own articles + all descendant nodes' articles.
-              For each node, walk up the parent chain; include if active_node is self or an ancestor.
-            {%- endcomment -%}
-            {%- for node in nav_nodes_sorted -%}
-              {%- assign node_handle = node.system.handle | default: node.handle -%}
-              {%- assign include_node = false -%}
-              {%- if node_handle == active_node -%}
-                {%- assign include_node = true -%}
-              {%- else -%}
-                {%- assign walk = node -%}
-                {%- for i in (1..10) -%}
-                  {%- assign parent_obj = walk.parent.value -%}
-                  {%- if parent_obj == blank -%}
-                    {%- break -%}
-                  {%- endif -%}
-                  {%- assign parent_handle = parent_obj.system.handle | default: parent_obj.handle | default: '' -%}
-                  {%- if parent_handle == blank -%}
-                    {%- break -%}
-                  {%- endif -%}
-                  {%- if parent_handle == active_node -%}
-                    {%- assign include_node = true -%}
-                    {%- break -%}
-                  {%- endif -%}
-                  {%- assign walk = parent_obj -%}
-                {%- endfor -%}
-              {%- endif -%}
+          {%- for node in nav_nodes_sorted -%}
+            {%- assign node_handle = node.system.handle | default: node.handle -%}
+            {%- assign node_token = node_handle | prepend: '|' | append: '|' -%}
+            {%- unless included_nodes contains node_token -%}
+              {%- continue -%}
+            {%- endunless -%}
 
-              {%- if include_node -%}
-                {%- for article in node.articles.value -%}
-                  {%- assign token = article.handle | prepend: '|' | append: '|' -%}
-                  {%- unless shown contains token -%}
-                    {%- assign shown = shown | append: article.handle | append: '|' -%}
-                    {%- if collected >= offset and collected < browse_end -%}
-                      {% render 'help-article-card', article: article %}
-                    {%- endif -%}
-                    {%- assign collected = collected | plus: 1 -%}
-                  {%- endunless -%}
-                {%- endfor -%}
+            {%- for article in node.articles.value -%}
+              {%- if article.handle == blank -%}
+                {%- continue -%}
               {%- endif -%}
+              {%- assign token = article.handle | prepend: '|' | append: '|' -%}
+              {%- unless shown contains token -%}
+                {%- assign shown = shown | append: article.handle | append: '|' -%}
+                {%- if collected >= offset and collected < browse_end -%}
+                  {% render 'help-article-card', article: article %}
+                {%- endif -%}
+                {%- assign collected = collected | plus: 1 -%}
+              {%- endunless -%}
             {%- endfor -%}
-          {%- endif -%}
+          {%- endfor -%}
 
           {%- if collected == 0 -%}
             <p class="help-center-hub__empty">No articles in this category yet.</p>
@@ -228,14 +221,17 @@
     }
   </script>
 
-  {%- comment -%} Browse data for client-side node switching (no full page reload) {%- endcomment -%}
+  {%- comment -%} 全量可见目录树，供 JS 切换节点时免刷新渲染 {%- endcomment -%}
   <script type="application/json" data-help-browse-data>
   {
     "nodes": {
       {%- assign node_first = true -%}
-      {%- assign nav_nodes_sorted = shop.metaobjects.help_nav_node.values | sort: 'sort_order' -%}
       {%- for node in nav_nodes_sorted -%}
         {%- assign node_handle = node.system.handle | default: node.handle -%}
+        {%- assign node_token = node_handle | prepend: '|' | append: '|' -%}
+        {%- unless visible_nodes contains node_token -%}
+          {%- continue -%}
+        {%- endunless -%}
         {%- unless node_first -%},{%- endunless -%}
         {%- assign node_first = false -%}
         {{ node_handle | json }}: {
@@ -245,6 +241,9 @@
           "articles": [
             {%- assign art_first = true -%}
             {%- for article in node.articles.value -%}
+              {%- if article.handle == blank -%}
+                {%- continue -%}
+              {%- endif -%}
               {%- unless art_first -%},{%- endunless -%}
               {%- assign art_first = false -%}
               {%- assign summary = article.metafields.help.summary.value | default: article.content | strip_html | truncate: 160 -%}

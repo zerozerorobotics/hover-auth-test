@@ -24,6 +24,37 @@
       .replace(/"/g, "&quot;");
   }
 
+  /**
+   * 转义并把命中的关键词包进 <mark>。
+   * 按整串大小写不敏感匹配,与后端 searchArticles 的 contains 语义一致。
+   * 先在原文上切段再逐段转义,避免关键词落在 HTML 实体内部把标记切坏。
+   */
+  function highlightMatches(text, query) {
+    var raw = String(text == null ? "" : text);
+    var needle = String(query == null ? "" : query)
+      .trim()
+      .toLowerCase();
+    if (!needle) return escapeHtml(raw);
+
+    var haystack = raw.toLowerCase();
+    // 个别字符转小写后长度会变(如 İ),下标会错位,这种情况放弃高亮
+    if (haystack.length !== raw.length) return escapeHtml(raw);
+
+    var out = "";
+    var from = 0;
+    var idx = haystack.indexOf(needle);
+    while (idx !== -1) {
+      out +=
+        escapeHtml(raw.slice(from, idx)) +
+        '<mark class="help-highlight">' +
+        escapeHtml(raw.slice(idx, idx + needle.length)) +
+        "</mark>";
+      from = idx + needle.length;
+      idx = haystack.indexOf(needle, from);
+    }
+    return out + escapeHtml(raw.slice(from));
+  }
+
   function lockBodyScroll(lock) {
     document.documentElement.classList.toggle("help-scroll-locked", lock);
     document.body.classList.toggle("help-scroll-locked", lock);
@@ -56,26 +87,25 @@
     );
   }
 
-  function renderSearchCard(hit) {
+  function renderSearchCard(hit, query) {
     var products = hit.tags && hit.tags.length ? hit.tags.join(", ") : "";
     var meta = products
-      ? '<p class="help-article-card__meta">Tags: ' + escapeHtml(products) + "</p>"
+      ? '<p class="help-article-card__meta">Tags: ' + highlightMatches(products, query) + "</p>"
       : hit.category
-        ? '<p class="help-article-card__meta">' + escapeHtml(hit.category) + "</p>"
+        ? '<p class="help-article-card__meta">' + highlightMatches(hit.category, query) + "</p>"
         : "";
+    var body = hit.summary || hit.excerpt || "";
     return (
       '<article class="help-article-card">' +
       '<a href="' +
       escapeHtml(hit.url) +
       '" class="help-article-card__link">' +
       '<h3 class="help-article-card__title">' +
-      escapeHtml(hit.title) +
+      highlightMatches(hit.title, query) +
       "</h3>" +
-      (hit.summary
-        ? '<p class="help-article-card__summary">' + escapeHtml(hit.summary) + "</p>"
-        : hit.excerpt
-          ? '<p class="help-article-card__summary">' + escapeHtml(hit.excerpt) + "</p>"
-          : "") +
+      (body
+        ? '<p class="help-article-card__summary">' + highlightMatches(body, query) + "</p>"
+        : "") +
       meta +
       "</a></article>"
     );
@@ -389,7 +419,13 @@
           if (!data.results || data.results.length === 0) {
             listEl.innerHTML = '<p class="help-center-hub__empty">No results found.</p>';
           } else {
-            listEl.innerHTML = data.results.map(renderSearchCard).join("");
+            // 用后端回显的 query 高亮,保证与实际命中的关键词一致
+            var matched = data.query || query;
+            listEl.innerHTML = data.results
+              .map(function (hit) {
+                return renderSearchCard(hit, matched);
+              })
+              .join("");
           }
           renderPagination(paginationEl, data.page || 1, data.totalPages || 0, function (p) {
             runSearch(query, p);

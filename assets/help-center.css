@@ -331,6 +331,21 @@ body.help-scroll-locked {
   color: rgba(0, 0, 0, 0.5);
 }
 
+.help-highlight {
+  background: rgba(0, 0, 0, 0.1);
+  color: inherit;
+  font-weight: 600;
+  border-radius: 2px;
+  padding: 0 1px;
+}
+
+@media (forced-colors: active) {
+  .help-highlight {
+    background: Highlight;
+    color: HighlightText;
+  }
+}
+
 .help-pagination {
   display: flex;
   align-items: center;

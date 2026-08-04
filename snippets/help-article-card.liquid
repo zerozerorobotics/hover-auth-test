@@ -1,0 +1,20 @@
+<article class="help-article-card">
+  <a href="{{ article.url }}" class="help-article-card__link">
+    <h3 class="help-article-card__title">{{ article.title }}</h3>
+    {% assign summary = article.metafields.help.summary.value | default: article.content | strip_html | truncate: 160 %}
+    {% if summary != blank %}
+      <p class="help-article-card__summary">{{ summary }}</p>
+    {% endif %}
+    {% assign products = article.metafields.help.applicable_products.value %}
+    {% if products != blank %}
+      <p class="help-article-card__meta">
+        Applicable Products:
+        {% if products.first %}
+          {{ products | join: ', ' }}
+        {% else %}
+          {{ products }}
+        {% endif %}
+      </p>
+    {% endif %}
+  </a>
+</article>

@@ -1,0 +1,81 @@
+{%- liquid
+  assign pad = depth | times: 20 | plus: 20
+  assign is_active = false
+  if active_handle == node.handle
+    assign is_active = true
+  endif
+  assign is_visible = true
+  if node.visible.value == false or node.visible.value == 'false'
+    assign is_visible = false
+  endif
+  assign next_depth = depth | plus: 1
+  assign node_handle = node.system.handle | default: node.handle
+  if nav_nodes_sorted == blank
+    assign nav_nodes_sorted = shop.metaobjects.help_nav_node.values | sort: 'sort_order'
+  endif
+-%}
+{% if is_visible %}
+  {%- assign has_children = false -%}
+  {%- assign expand_for_active = false -%}
+  {%- for child in nav_nodes_sorted -%}
+    {%- assign child_parent_handle = child.parent.value.system.handle | default: child.parent.value.handle | default: '' -%}
+    {%- if child_parent_handle == node_handle -%}
+      {%- assign has_children = true -%}
+      {%- if child.system.handle == active_handle or child.handle == active_handle -%}
+        {%- assign expand_for_active = true -%}
+      {%- endif -%}
+    {%- endif -%}
+  {%- endfor -%}
+
+  {%- if is_active -%}
+    {%- assign expand_for_active = true -%}
+  {%- endif -%}
+
+  <div
+    class="help-nav-node{% if has_children and expand_for_active %} is-expanded{% endif %}"
+    data-depth="{{ depth }}"
+    data-nav-node="{{ node_handle }}"
+  >
+    <div class="help-nav-node__row" style="padding-left: {{ pad }}px">
+      <button
+        type="button"
+        class="help-nav-node__link{% if is_active %} is-active{% endif %}{% if has_children %} has-children{% endif %}"
+        data-node-handle="{{ node_handle }}"
+        data-help-nav-select
+        data-node-title="{{ node.title.value | default: node_handle | escape }}"
+      >
+        <span class="help-nav-node__title">{{ node.title.value | default: node_handle }}</span>
+        <span class="help-nav-node__count" data-help-nav-count {% unless is_active %}hidden{% endunless %}>{% if is_active %}{{ active_node_count }}{% endif %}</span>
+      </button>
+      {% if has_children %}
+        <button
+          type="button"
+          class="help-nav-node__chevron-btn"
+          data-help-nav-toggle
+          aria-expanded="{% if expand_for_active %}true{% else %}false{% endif %}"
+          aria-label="Toggle {{ node.title.value | default: node_handle | escape }}"
+        >
+          <span class="help-nav-node__chevron" aria-hidden="true"></span>
+        </button>
+      {% endif %}
+    </div>
+
+    {% if has_children %}
+      <div class="help-nav-node__children" {% unless expand_for_active %}hidden{% endunless %}>
+        {%- for child in nav_nodes_sorted -%}
+          {%- assign child_parent_handle = child.parent.value.system.handle | default: child.parent.value.handle | default: '' -%}
+          {%- if child_parent_handle == node_handle -%}
+            {% render 'help-nav-node',
+              node: child,
+              depth: next_depth,
+              active_handle: active_handle,
+              hub_url: hub_url,
+              nav_nodes_sorted: nav_nodes_sorted,
+              active_node_count: active_node_count
+            %}
+          {%- endif -%}
+        {%- endfor -%}
+      </div>
+    {% endif %}
+  </div>
+{% endif %}

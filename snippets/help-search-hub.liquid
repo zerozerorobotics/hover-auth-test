@@ -1,0 +1,20 @@
+<form class="help-search-bar" data-help-search-form role="search">
+  <div class="help-search-bar__field">
+    <span class="help-search-bar__icon" aria-hidden="true">
+      <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M9 16A7 7 0 1 0 9 2a7 7 0 0 0 0 14Z" stroke="currentColor" stroke-opacity="0.3"/>
+        <path d="M14 14L18 18" stroke="currentColor" stroke-opacity="0.3" stroke-linecap="round"/>
+      </svg>
+    </span>
+    <input
+      type="search"
+      name="q"
+      class="help-search-bar__input"
+      placeholder="{{ placeholder | default: 'Search for Support' }}"
+      value="{{ query | escape }}"
+      autocomplete="off"
+      data-help-search-input
+    >
+  </div>
+  <button type="submit" class="help-search-bar__button">Search</button>
+</form>

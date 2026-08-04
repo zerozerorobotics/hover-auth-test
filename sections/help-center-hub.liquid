@@ -1,0 +1,349 @@
+{%- style -%}
+  #shopify-section-{{ section.id }} {
+    padding-top: {{ section.settings.padding_top_mb }}px;
+    padding-bottom: {{ section.settings.padding_bottom_mb }}px;
+  }
+  @media screen and (min-width: 1024px) {
+    #shopify-section-{{ section.id }} {
+      padding-top: {{ section.settings.padding_top }}px;
+      padding-bottom: {{ section.settings.padding_bottom }}px;
+    }
+  }
+{%- endstyle -%}
+
+{{ 'help-center.css' | asset_url | stylesheet_tag }}
+<script src="{{ 'help-center.js' | asset_url }}" defer></script>
+
+{%- liquid
+  assign hub_url = section.settings.hub_page.url | default: '/pages/help-center'
+  assign search_q = request.query_parameters.q | strip
+  assign active_node = request.query_parameters.node | default: 'all'
+  assign browse_page = request.query_parameters.page | default: '1' | plus: 0
+  assign browse_limit = section.settings.browse_page_size
+  assign active_node_label = 'All'
+  assign active_node_count = 0
+  if active_node != 'all' and active_node != blank
+    for node in shop.metaobjects.help_nav_node.values
+      assign node_handle = node.system.handle | default: node.handle
+      if node_handle == active_node
+        assign active_node_label = node.title.value | default: node_handle
+        break
+      endif
+    endfor
+  endif
+
+  if search_q == blank
+    assign nav_nodes_sorted = shop.metaobjects.help_nav_node.values | sort: 'sort_order'
+    assign shown_count = '|'
+    if active_node == 'all' or active_node == blank
+      for node in nav_nodes_sorted
+        for article in node.articles.value
+          assign token = article.handle | prepend: '|' | append: '|'
+          unless shown_count contains token
+            assign shown_count = shown_count | append: article.handle | append: '|'
+            assign active_node_count = active_node_count | plus: 1
+          endunless
+        endfor
+      endfor
+    else
+      for node in nav_nodes_sorted
+        assign node_handle = node.system.handle | default: node.handle
+        assign include_node = false
+        if node_handle == active_node
+          assign include_node = true
+        else
+          assign walk = node
+          for i in (1..10)
+            assign parent_obj = walk.parent.value
+            if parent_obj == blank
+              break
+            endif
+            assign parent_handle = parent_obj.system.handle | default: parent_obj.handle | default: ''
+            if parent_handle == blank
+              break
+            endif
+            if parent_handle == active_node
+              assign include_node = true
+              break
+            endif
+            assign walk = parent_obj
+          endfor
+        endif
+        if include_node
+          for article in node.articles.value
+            assign token = article.handle | prepend: '|' | append: '|'
+            unless shown_count contains token
+              assign shown_count = shown_count | append: article.handle | append: '|'
+              assign active_node_count = active_node_count | plus: 1
+            endunless
+          endfor
+        endif
+      endfor
+    endif
+  endif
+-%}
+
+<div
+  class="help-center-hub page-width"
+  data-help-hub
+  data-proxy-base="/apps/help/search"
+  data-browse-limit="{{ browse_limit }}"
+  data-hub-url="{{ hub_url }}"
+>
+  <header class="help-center-hub__header">
+    <h1 class="help-center-hub__title">{{ section.settings.title }}</h1>
+    <div class="help-center-hub__search-wrap">
+      {% render 'help-search-bar', query: search_q, placeholder: section.settings.search_placeholder %}
+    </div>
+  </header>
+
+  <div class="help-center-hub__layout">
+    <aside class="help-center-hub__sidebar" aria-label="Help categories">
+      <button
+        type="button"
+        class="help-center-hub__nav-toggle"
+        data-help-nav-open
+        data-active-label="{{ active_node_label | escape }}"
+        aria-expanded="false"
+        aria-controls="help-nav-drawer"
+      >
+        <span class="help-center-hub__nav-toggle-label">Categories</span>
+        <span class="help-center-hub__nav-toggle-value" data-help-nav-label>{{ active_node_label }}</span>
+        <span class="help-center-hub__nav-toggle-count" data-help-nav-toggle-count {% if search_q != blank %}hidden{% endif %}>{{ active_node_count }}</span>
+        <span class="help-center-hub__nav-toggle-icon" aria-hidden="true"></span>
+      </button>
+      <div
+        class="help-center-hub__sidebar-inner"
+        id="help-nav-drawer"
+        data-help-nav-panel
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="help-nav-drawer-title"
+        aria-hidden="true"
+      >
+        <div class="help-center-hub__drawer-header">
+          <h2 class="help-center-hub__drawer-title" id="help-nav-drawer-title">Categories</h2>
+          <button type="button" class="help-center-hub__drawer-close" data-help-nav-close aria-label="Close categories">×</button>
+        </div>
+        {% render 'help-nav-tree', active_handle: active_node, hub_url: hub_url, active_node_count: active_node_count %}
+      </div>
+    </aside>
+
+    <div class="help-center-hub__main">
+      <p class="help-center-hub__count" data-help-results-count {% if search_q != blank %}hidden{% endif %}>
+        <span data-help-results-number>{% if search_q == blank %}{{ active_node_count }}{% else %}0{% endif %}</span>
+        <span data-help-results-suffix>{% if search_q != blank %}results{% else %}articles{% endif %}</span>
+      </p>
+
+      <div class="help-center-hub__results" data-help-results-list>
+        {%- if search_q == blank -%}
+          {%- comment -%} Initial SSR list; JS takes over on node switch {%- endcomment -%}
+          {%- assign shown = '|' -%}
+          {%- assign collected = 0 -%}
+          {%- assign offset = browse_page | minus: 1 | times: browse_limit -%}
+          {%- assign browse_end = offset | plus: browse_limit -%}
+
+          {%- comment -%}
+            SSR fallback: nodes ordered by Admin sort_order.
+            JS re-renders on load with full tree DFS (same order as Admin).
+          {%- endcomment -%}
+          {%- assign nav_nodes_sorted = shop.metaobjects.help_nav_node.values | sort: 'sort_order' -%}
+          {%- if active_node == 'all' or active_node == blank -%}
+            {%- for node in nav_nodes_sorted -%}
+              {%- for article in node.articles.value -%}
+                {%- assign token = article.handle | prepend: '|' | append: '|' -%}
+                {%- unless shown contains token -%}
+                  {%- assign shown = shown | append: article.handle | append: '|' -%}
+                  {%- if collected >= offset and collected < browse_end -%}
+                    {% render 'help-article-card', article: article %}
+                  {%- endif -%}
+                  {%- assign collected = collected | plus: 1 -%}
+                {%- endunless -%}
+              {%- endfor -%}
+            {%- endfor -%}
+          {%- else -%}
+            {%- comment -%}
+              Parent node shows its own articles + all descendant nodes' articles.
+              For each node, walk up the parent chain; include if active_node is self or an ancestor.
+            {%- endcomment -%}
+            {%- for node in nav_nodes_sorted -%}
+              {%- assign node_handle = node.system.handle | default: node.handle -%}
+              {%- assign include_node = false -%}
+              {%- if node_handle == active_node -%}
+                {%- assign include_node = true -%}
+              {%- else -%}
+                {%- assign walk = node -%}
+                {%- for i in (1..10) -%}
+                  {%- assign parent_obj = walk.parent.value -%}
+                  {%- if parent_obj == blank -%}
+                    {%- break -%}
+                  {%- endif -%}
+                  {%- assign parent_handle = parent_obj.system.handle | default: parent_obj.handle | default: '' -%}
+                  {%- if parent_handle == blank -%}
+                    {%- break -%}
+                  {%- endif -%}
+                  {%- if parent_handle == active_node -%}
+                    {%- assign include_node = true -%}
+                    {%- break -%}
+                  {%- endif -%}
+                  {%- assign walk = parent_obj -%}
+                {%- endfor -%}
+              {%- endif -%}
+
+              {%- if include_node -%}
+                {%- for article in node.articles.value -%}
+                  {%- assign token = article.handle | prepend: '|' | append: '|' -%}
+                  {%- unless shown contains token -%}
+                    {%- assign shown = shown | append: article.handle | append: '|' -%}
+                    {%- if collected >= offset and collected < browse_end -%}
+                      {% render 'help-article-card', article: article %}
+                    {%- endif -%}
+                    {%- assign collected = collected | plus: 1 -%}
+                  {%- endunless -%}
+                {%- endfor -%}
+              {%- endif -%}
+            {%- endfor -%}
+          {%- endif -%}
+
+          {%- if collected == 0 -%}
+            <p class="help-center-hub__empty">No articles in this category yet.</p>
+          {%- endif -%}
+        {%- else -%}
+          <p class="help-center-hub__loading">Searching…</p>
+        {%- endif -%}
+      </div>
+
+      <nav class="help-pagination" data-help-pagination hidden aria-label="Pagination"></nav>
+    </div>
+  </div>
+
+  <div class="help-center-hub__overlay" data-help-nav-overlay hidden></div>
+
+  <script type="application/json" data-help-bootstrap>
+    {
+      "query": {{ search_q | json }},
+      "node": {{ active_node | json }},
+      "page": {{ browse_page | json }},
+      "limit": {{ browse_limit | json }}
+    }
+  </script>
+
+  {%- comment -%} Browse data for client-side node switching (no full page reload) {%- endcomment -%}
+  <script type="application/json" data-help-browse-data>
+  {
+    "nodes": {
+      {%- assign node_first = true -%}
+      {%- assign nav_nodes_sorted = shop.metaobjects.help_nav_node.values | sort: 'sort_order' -%}
+      {%- for node in nav_nodes_sorted -%}
+        {%- assign node_handle = node.system.handle | default: node.handle -%}
+        {%- unless node_first -%},{%- endunless -%}
+        {%- assign node_first = false -%}
+        {{ node_handle | json }}: {
+          "title": {{ node.title.value | default: node_handle | json }},
+          "parent": {{ node.parent.value.system.handle | default: node.parent.value.handle | default: '' | json }},
+          "sort_order": {{ node.sort_order.value | default: 0 | json }},
+          "articles": [
+            {%- assign art_first = true -%}
+            {%- for article in node.articles.value -%}
+              {%- unless art_first -%},{%- endunless -%}
+              {%- assign art_first = false -%}
+              {%- assign summary = article.metafields.help.summary.value | default: article.content | strip_html | truncate: 160 -%}
+              {%- assign products = article.metafields.help.applicable_products.value -%}
+              {
+                "title": {{ article.title | json }},
+                "url": {{ article.url | json }},
+                "handle": {{ article.handle | json }},
+                "summary": {{ summary | json }},
+                "products": {% if products != blank %}{{ products | json }}{% else %}null{% endif %}
+              }
+            {%- endfor -%}
+          ]
+        }
+      {%- endfor -%}
+    }
+  }
+  </script>
+</div>
+
+{% schema %}
+{
+  "name": "Help Center Hub",
+  "tag": "section",
+  "class": "section-help-center-hub",
+  "settings": [
+    {
+      "type": "page",
+      "id": "hub_page",
+      "label": "Help Center page (for nav links)"
+    },
+    {
+      "type": "text",
+      "id": "title",
+      "label": "Title (desktop)",
+      "default": "HOVERAir Help Center"
+    },
+    {
+      "type": "text",
+      "id": "title_mobile",
+      "label": "Title (mobile)",
+      "default": "HOVERAir Help Center"
+    },
+    {
+      "type": "text",
+      "id": "search_placeholder",
+      "label": "Search placeholder",
+      "default": "Search for Support"
+    },
+    {
+      "type": "range",
+      "id": "browse_page_size",
+      "min": 5,
+      "max": 30,
+      "step": 1,
+      "default": 10,
+      "label": "Articles per page (browse mode)"
+    },
+    {
+      "type": "range",
+      "id": "padding_top",
+      "min": 0,
+      "max": 120,
+      "step": 4,
+      "unit": "px",
+      "label": "Padding top (desktop)",
+      "default": 80
+    },
+    {
+      "type": "range",
+      "id": "padding_bottom",
+      "min": 0,
+      "max": 120,
+      "step": 4,
+      "unit": "px",
+      "label": "Padding bottom (desktop)",
+      "default": 80
+    },
+    {
+      "type": "range",
+      "id": "padding_top_mb",
+      "min": 0,
+      "max": 80,
+      "step": 4,
+      "unit": "px",
+      "label": "Padding top (mobile)",
+      "default": 40
+    },
+    {
+      "type": "range",
+      "id": "padding_bottom_mb",
+      "min": 0,
+      "max": 80,
+      "step": 4,
+      "unit": "px",
+      "label": "Padding bottom (mobile)",
+      "default": 48
+    }
+  ],
+  "presets": [{ "name": "Help Center Hub" }]
+}
+{% endschema %}

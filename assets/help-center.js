@@ -4,10 +4,14 @@
 
   function parseJsonEl(root, selector, fallback) {
     var el = root.querySelector(selector);
-    if (!el) return fallback;
+    if (!el) {
+      console.warn("[help-center] missing JSON block:", selector);
+      return fallback;
+    }
     try {
       return JSON.parse(el.textContent);
-    } catch (_e) {
+    } catch (e) {
+      console.warn("[help-center] invalid JSON in", selector, e);
       return fallback;
     }
   }
@@ -186,7 +190,6 @@
 
   function initHub(hub) {
     var proxyBase = hub.getAttribute("data-proxy-base") || "/apps/help/search";
-    var hubUrl = hub.getAttribute("data-hub-url") || "/pages/help-center";
     var bootstrap = parseJsonEl(hub, "[data-help-bootstrap]", {
       query: "",
       page: 1,

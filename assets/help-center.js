@@ -94,7 +94,14 @@
       : hit.category
         ? '<p class="help-article-card__meta">' + highlightMatches(hit.category, query) + "</p>"
         : "";
+    // 命中在正文时 excerpt 才带上下文,优先用它,否则高亮无处可显示
+    var needle = String(query == null ? "" : query)
+      .trim()
+      .toLowerCase();
     var body = hit.summary || hit.excerpt || "";
+    if (needle && hit.excerpt && String(body).toLowerCase().indexOf(needle) === -1) {
+      body = hit.excerpt;
+    }
     return (
       '<article class="help-article-card">' +
       '<a href="' +

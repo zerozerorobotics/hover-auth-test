@@ -1,0 +1,154 @@
+{%- style -%}
+  #shopify-section-{{ section.id }} {
+    padding-top: {{ section.settings.padding_top_mb }}px;
+    padding-bottom: {{ section.settings.padding_bottom_mb }}px;
+  }
+  @media screen and (min-width: 1024px) {
+    #shopify-section-{{ section.id }} {
+      padding-top: {{ section.settings.padding_top }}px;
+      padding-bottom: {{ section.settings.padding_bottom }}px;
+    }
+  }
+{%- endstyle -%}
+
+{{ 'help-center.css' | asset_url | stylesheet_tag }}
+<script src="{{ 'help-center.js' | asset_url }}" defer></script>
+
+{%- liquid
+  assign hub_url = section.settings.hub_page.url | default: '/pages/help-center'
+  assign summary = page.metafields.help.summary.value
+  assign products = page.metafields.help.applicable_products.value
+-%}
+
+<article
+  class="help-center-article page-width"
+  data-help-article
+  data-page-handle="{{ page.handle }}"
+  data-proxy-feedback="/apps/help/feedback"
+  data-scroll-offset="96"
+>
+  <nav class="help-center-article__breadcrumbs" aria-label="Breadcrumb">
+    <a href="{{ hub_url }}">Help Center</a>
+    <span class="help-center-article__breadcrumbs-sep" aria-hidden="true">/</span>
+    <span aria-current="page">{{ page.title }}</span>
+  </nav>
+
+  <div class="help-center-article__layout">
+    <aside class="help-center-article__toc" aria-label="Table of contents">
+      <a href="{{ hub_url }}" class="help-center-article__back help-center-article__back--desktop">←</a>
+      <button
+        type="button"
+        class="help-center-article__toc-toggle"
+        data-help-toc-toggle
+        aria-expanded="false"
+        aria-controls="help-article-toc-panel"
+      >
+        <span>Contents</span>
+        <span class="help-center-article__toc-toggle-icon" aria-hidden="true"></span>
+      </button>
+      <div class="help-center-article__toc-panel" id="help-article-toc-panel" data-help-toc-panel>
+        <h2 class="help-center-article__toc-title">Contents</h2>
+        <nav class="help-center-article__toc-list" data-help-toc></nav>
+      </div>
+    </aside>
+
+    <div class="help-center-article__body">
+      <header class="help-center-article__header">
+        <h1 class="help-center-article__title">{{ page.title }}</h1>
+        {% if summary != blank %}
+          <p class="help-center-article__summary">{{ summary }}</p>
+        {% endif %}
+        <div class="help-center-article__meta">
+          <span>Updated {{ page.updated_at | date: '%b %d, %Y' }}</span>
+          {% if products != blank %}
+            <span>
+              Applicable Products:
+              {% if products.first %}
+                {{ products | join: ', ' }}
+              {% else %}
+                {{ products }}
+              {% endif %}
+            </span>
+          {% endif %}
+        </div>
+      </header>
+
+      <div class="help-center-article__content rte" data-help-content>
+        {{ page.content }}
+      </div>
+
+      {% if section.settings.show_feedback %}
+        <div class="help-center-article__feedback" data-help-feedback>
+          <p class="help-center-article__feedback-label">Was this helpful?</p>
+          <div class="help-center-article__feedback-actions">
+            <button type="button" class="help-center-article__feedback-btn" data-helpful="true">Yes</button>
+            <button type="button" class="help-center-article__feedback-btn" data-helpful="false">No</button>
+          </div>
+          <p class="help-center-article__feedback-thanks" data-help-feedback-thanks hidden>Thanks for your feedback.</p>
+        </div>
+      {% endif %}
+    </div>
+  </div>
+</article>
+
+{% schema %}
+{
+  "name": "Help Center Article",
+  "tag": "section",
+  "class": "section-help-center-article",
+  "settings": [
+    {
+      "type": "page",
+      "id": "hub_page",
+      "label": "Help Center hub page"
+    },
+    {
+      "type": "checkbox",
+      "id": "show_feedback",
+      "label": "Show helpful feedback",
+      "default": true
+    },
+    {
+      "type": "range",
+      "id": "padding_top",
+      "min": 0,
+      "max": 120,
+      "step": 4,
+      "unit": "px",
+      "label": "Padding top (desktop)",
+      "default": 80
+    },
+    {
+      "type": "range",
+      "id": "padding_bottom",
+      "min": 0,
+      "max": 120,
+      "step": 4,
+      "unit": "px",
+      "label": "Padding bottom (desktop)",
+      "default": 80
+    },
+    {
+      "type": "range",
+      "id": "padding_top_mb",
+      "min": 0,
+      "max": 80,
+      "step": 4,
+      "unit": "px",
+      "label": "Padding top (mobile)",
+      "default": 40
+    },
+    {
+      "type": "range",
+      "id": "padding_bottom_mb",
+      "min": 0,
+      "max": 80,
+      "step": 4,
+      "unit": "px",
+      "label": "Padding bottom (mobile)",
+      "default": 48
+    }
+  ],
+  "presets": [{ "name": "Help Center Article" }]
+}
+{% endschema %}

@@ -1,0 +1,31 @@
+{%- comment -%}
+  Help Center nav tree.
+  Roots first (no parent), ordered by Admin sort_order. Children via help-nav-node.
+{%- endcomment -%}
+{%- assign nav_nodes_sorted = shop.metaobjects.help_nav_node.values | sort: 'sort_order' -%}
+<div class="help-nav-tree" data-help-nav-tree>
+  <button
+    type="button"
+    class="help-nav-node__link help-nav-node__link--all{% if active_handle == 'all' or active_handle == blank %} is-active{% endif %}"
+    style="padding-left: 20px"
+    data-node-handle="all"
+    data-help-nav-select
+  >
+    <span class="help-nav-node__title">All</span>
+    <span class="help-nav-node__count" data-help-nav-count {% unless active_handle == 'all' or active_handle == blank %}hidden{% endunless %}>{% if active_handle == 'all' or active_handle == blank %}{{ active_node_count }}{% endif %}</span>
+  </button>
+
+  {%- for node in nav_nodes_sorted -%}
+    {%- assign parent_handle = node.parent.value.system.handle | default: node.parent.value.handle | default: '' -%}
+    {%- if parent_handle == blank -%}
+      {% render 'help-nav-node',
+        node: node,
+        depth: 0,
+        active_handle: active_handle,
+        hub_url: hub_url,
+        nav_nodes_sorted: nav_nodes_sorted,
+        active_node_count: active_node_count
+      %}
+    {%- endif -%}
+  {%- endfor -%}
+</div>
